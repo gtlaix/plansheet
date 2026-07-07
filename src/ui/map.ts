@@ -78,6 +78,16 @@ export function createMap(container: HTMLElement, onPick: (lat: number, lng: num
 
   map.on('click', (e: L.LeafletMouseEvent) => onPick(e.latlng.lat, e.latlng.lng));
 
+  // Keyboard path: the map container is focusable (Leaflet sets tabindex=0);
+  // arrow keys pan and Enter checks the current centre — a click alternative.
+  container.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const c = map.getCenter();
+      onPick(c.lat, c.lng);
+    }
+  });
+
   return {
     setPin(lat: number, lng: number) {
       if (pin) pin.remove();

@@ -116,6 +116,17 @@ test('a postcode generates a ranked plan sheet, admin first', async ({ page }) =
 
   // shareable link
   expect(page.url()).toContain('lat=51.501');
+
+  // a11y: report is a labelled landmark and badges announce the rating
+  await expect(page.locator('.report[role="region"]')).toHaveCount(1);
+  await expect(page.locator('.hit-list')).toHaveAttribute('aria-label', /most significant first/);
+  await expect(page.locator('.hit-list .badge').first()).toHaveAttribute('aria-label', /Impact rating/);
+});
+
+test('the map is keyboard-operable: Enter checks the centre', async ({ page }) => {
+  await page.locator('#map').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.hit-list')).toBeVisible();
 });
 
 test('dark mode toggle flips the theme attribute', async ({ page }) => {

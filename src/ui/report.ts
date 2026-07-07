@@ -91,7 +91,7 @@ function hitCard(hit: ScoredHit): HTMLElement {
     el(
       'div',
       { class: 'hit-head' },
-      el('span', { class: `badge badge-${tier}` }, TIER_LABELS[tier]),
+      el('span', { class: `badge badge-${tier}`, ariaLabel: `Impact rating: ${TIER_LABELS[tier]}` }, TIER_LABELS[tier]),
       el('span', { class: 'category-tag' }, CATEGORY_LABELS[hit.registry.category]),
     ),
     el(
@@ -110,7 +110,7 @@ export function renderReport(root: HTMLElement, data: ReportData): void {
   const adminHits = data.hits.filter((h) => h.registry.category === 'administrative');
   const constraintHits = data.hits.filter((h) => h.registry.category !== 'administrative');
 
-  const report = el('div', { class: 'report' });
+  const report = el('div', { class: 'report', role: 'region', ariaLabel: 'PlanSheet results' });
 
   // --- Header ---
   const coords = `${data.selection.lat.toFixed(5)}, ${data.selection.lng.toFixed(5)}`;
@@ -165,7 +165,7 @@ export function renderReport(root: HTMLElement, data: ReportData): void {
   if (constraintHits.length > 0) {
     constraintSection.append(
       el('p', { class: 'hint' }, 'Ordered by likely impact on the planning potential of the site, greatest first.'),
-      el('ul', { class: 'hit-list' }, ...constraintHits.map(hitCard)),
+      el('ul', { class: 'hit-list', ariaLabel: 'Constraints and designations, most significant first' }, ...constraintHits.map(hitCard)),
     );
   } else {
     constraintSection.append(el('p', {}, 'No planning constraints or designations intersect this point.'));

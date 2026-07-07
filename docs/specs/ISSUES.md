@@ -66,11 +66,11 @@ migrations are explicit.
 
 ## 🟡 ISSUES-9 — Tabs are not accessible
 
-> **STATUS: FIXED for tabs (ARIA roles, roving tabindex, arrow keys); map keyboard alternative and report screen-reader pass still open**
-Tab buttons lack `role="tab"`, `aria-selected`, arrow-key navigation; panels lack
-`role="tabpanel"`/`aria-labelledby`. Map lacks a keyboard alternative for click-to-check
-(coordinates tab mitigates). Screen-reader pass wanted on the report (headings hierarchy is
-sound; badges need `aria-label` since colour conveys tier).
+> **STATUS: FIXED.** The tab strip was removed with the search-panel redesign. Remaining a11y
+> items are now done: the report is a labelled `role="region"` landmark with a described
+> constraints list, severity badges carry an `aria-label` ("Impact rating: …"), and the map is
+> keyboard-operable — focus it and press Enter to check the current centre (arrow keys pan). The
+> coordinates row remains the primary keyboard path. Covered by e2e assertions.
 
 ## 🟡 ISSUES-10 — `title-boundary` renders with empty name
 
