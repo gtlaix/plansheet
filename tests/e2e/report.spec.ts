@@ -84,6 +84,11 @@ test('England mask renders from the border layer', async ({ page }) => {
   await expect(page.locator('.leaflet-england-mask-pane path')).toHaveCount(1);
 });
 
+test('the severity legend is shown on the map', async ({ page }) => {
+  await expect(page.locator('.map-legend')).toBeVisible();
+  await expect(page.locator('.map-legend')).toContainText('Very high impact');
+});
+
 test('a postcode generates a ranked plan sheet, admin first', async ({ page }) => {
   await page.fill('#postcode-input', 'SW1A 1AA');
   await page.press('#postcode-input', 'Enter');
@@ -125,6 +130,9 @@ test('a postcode generates a ranked plan sheet, admin first', async ({ page }) =
   // entity detail drawer expands to show raw fields
   await page.locator('.hit-list .hit-more summary').first().click();
   await expect(page.locator('.hit-list .hit-fields').first()).toContainText('Dataset');
+
+  // per-category layer toggle appears once overlays load
+  await expect(page.locator('.leaflet-control-layers')).toContainText('Heritage');
 });
 
 test('the map is keyboard-operable: Enter checks the centre', async ({ page }) => {

@@ -1,6 +1,7 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { impactTier, type ImpactTier } from '../datasets';
+import { CATEGORY_LABELS, impactTier, TIER_LABELS, type ImpactTier } from '../datasets';
+import type { Category } from '../types';
 
 export const TIER_COLORS: Record<ImpactTier, string> = {
   'very-high': '#a4262c',
@@ -9,6 +10,8 @@ export const TIER_COLORS: Record<ImpactTier, string> = {
   low: '#2b5f9e',
   informational: '#5f6b7a',
 };
+
+const TIER_ORDER: ImpactTier[] = ['very-high', 'high', 'medium', 'low', 'informational'];
 
 /** Generous envelope around England (Scilly → Berwick). Also used by main.ts. */
 export const ENGLAND_BOUNDS = { south: 49.8, north: 55.9, west: -6.5, east: 1.8 };
@@ -27,7 +30,11 @@ export const BASEMAP = {
 
 export interface MapController {
   setPin(lat: number, lng: number): void;
-  showOverlays(collection: GeoJSON.FeatureCollection, scoreBySlug: Map<string, number>): void;
+  showOverlays(
+    collection: GeoJSON.FeatureCollection,
+    scoreBySlug: Map<string, number>,
+    categoryBySlug: Map<string, Category>,
+  ): void;
   clearOverlays(): void;
   setDark(dark: boolean): void;
   showEnglandMask(border: GeoJSON.FeatureCollection | null): void;
@@ -84,6 +91,18 @@ export function createMap(container: HTMLElement, onPick: (lat: number, lng: num
 
   const overlayGroup = L.featureGroup().addTo(map);
   let pin: L.CircleMarker | null = null;
+  let layersControl: L.Control.Layers | null = null;
+
+  // Static severity legend (key to the overlay colours).
+  const legend = new L.Control({ position: 'bottomright' });
+  legend.onAdd = () => {
+    const div = L.DomUtil.create('div', 'map-legend');
+    div.innerHTML =
+      '<strong>Impact</strong>' +
+      TIER_ORDER.map((t) => `<span class="legend-row"><i style="background:${TIER_COLORS[t]}"></i>${TIER_LABELS[t]}</span>`).join('');
+    return div;
+  };
+  legend.addTo(map);
 
   map.on('click', (e: L.LeafletMouseEvent) => onPick(e.latlng.lat, e.latlng.lng));
 
@@ -111,35 +130,50 @@ export function createMap(container: HTMLElement, onPick: (lat: number, lng: num
       map.setView([lat, lng], targetZoom);
     },
 
-    showOverlays(collection, scoreBySlug) {
-      overlayGroup.clearLayers();
-      L.geoJSON(collection, {
+    showOverlays(collection, scoreBySlug, categoryBySlug) {
+      this.clearOverlays();
+      const colourFor = (feature: GeoJSON.Feature | undefined) =>
+        TIER_COLORS[impactTier(scoreBySlug.get(String(feature?.properties?.dataset ?? '')) ?? 0)];
+      const options: L.GeoJSONOptions = {
         style: (feature) => {
-          const slug = String(feature?.properties?.dataset ?? '');
-          const tier = impactTier(scoreBySlug.get(slug) ?? 0);
-          const color = TIER_COLORS[tier];
+          const color = colourFor(feature);
           return { color, weight: 2, fillColor: color, fillOpacity: 0.12 };
         },
-        pointToLayer: (feature, latlng) => {
-          const slug = String(feature?.properties?.dataset ?? '');
-          const tier = impactTier(scoreBySlug.get(slug) ?? 0);
-          return L.circleMarker(latlng, {
-            radius: 6,
-            color: TIER_COLORS[tier],
-            weight: 2,
-            fillOpacity: 0.4,
-          });
-        },
+        pointToLayer: (feature, latlng) =>
+          L.circleMarker(latlng, { radius: 6, color: colourFor(feature), weight: 2, fillOpacity: 0.4 }),
         onEachFeature: (feature, layer) => {
           const name = feature?.properties?.name || feature?.properties?.reference || '';
           const dataset = String(feature?.properties?.dataset ?? '').replace(/-/g, ' ');
           if (name || dataset) layer.bindTooltip(`${dataset}${name ? `: ${name}` : ''}`);
         },
-      }).addTo(overlayGroup);
+      };
+
+      // Group features by category so each can be toggled independently.
+      const groups = new Map<Category, L.LayerGroup>();
+      for (const feature of collection.features ?? []) {
+        const slug = String(feature.properties?.dataset ?? '');
+        const category = categoryBySlug.get(slug) ?? 'other';
+        let group = groups.get(category);
+        if (!group) {
+          group = L.layerGroup().addTo(overlayGroup);
+          groups.set(category, group);
+        }
+        L.geoJSON(feature, options).addTo(group);
+      }
+
+      if (groups.size > 0) {
+        const overlays: Record<string, L.Layer> = {};
+        for (const [category, group] of groups) overlays[CATEGORY_LABELS[category]] = group;
+        layersControl = L.control.layers(undefined, overlays, { collapsed: false, position: 'topright' }).addTo(map);
+      }
     },
 
     clearOverlays() {
       overlayGroup.clearLayers();
+      if (layersControl) {
+        layersControl.remove();
+        layersControl = null;
+      }
     },
 
     setDark(dark: boolean) {

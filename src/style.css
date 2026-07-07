@@ -122,6 +122,51 @@ body {
   filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.95);
 }
 
+/* Severity legend + layer toggle controls */
+.map-legend {
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.map-legend strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.legend-row i {
+  display: inline-block;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
+.leaflet-control-layers {
+  background: var(--surface) !important;
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.leaflet-control-layers-expanded {
+  padding: 0.4rem 0.6rem 0.4rem 0.5rem;
+}
+
 .app-footer {
   padding: 0.75rem 1.25rem;
   font-size: 0.78rem;

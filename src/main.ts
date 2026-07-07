@@ -83,8 +83,10 @@ async function runCheck(selection: LocationSelection): Promise<void> {
       ...new Set(sorted.filter((h) => h.registry.category !== 'administrative').map((h) => h.registry.slug)),
     ];
     const scoreBySlug = new Map<string, number>();
+    const categoryBySlug = new Map<string, RegistryEntry['category']>();
     for (const hit of sorted) {
       scoreBySlug.set(hit.registry.slug, Math.max(scoreBySlug.get(hit.registry.slug) ?? 0, hit.score));
+      categoryBySlug.set(hit.registry.slug, hit.registry.category);
     }
     // Make the check shareable/bookmarkable (point checks only for now).
     const params = new URLSearchParams({ lat: selection.lat.toFixed(6), lng: selection.lng.toFixed(6) });
@@ -92,7 +94,7 @@ async function runCheck(selection: LocationSelection): Promise<void> {
     history.replaceState(null, '', `?${params.toString()}`);
 
     const geojson = await queryGeojson(selection.lat, selection.lng, overlaySlugs, fetch, abort.signal);
-    if (token === runToken && geojson) map.showOverlays(geojson, scoreBySlug);
+    if (token === runToken && geojson) map.showOverlays(geojson, scoreBySlug, categoryBySlug);
   } catch (err) {
     if (abort.signal.aborted) return; // superseded — the newer run owns the UI
     console.error('plansheet: check failed', err);
