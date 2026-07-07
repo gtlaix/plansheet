@@ -97,6 +97,30 @@ export function createSearchPanel(
     });
   });
 
+  // --- British National Grid row (EPSG:27700, easting/northing) ---
+  const eastingInput = el('input', { class: 'text-input', id: 'easting-input', placeholder: 'Easting, e.g. 529090', inputMode: 'numeric' });
+  const northingInput = el('input', { class: 'text-input', id: 'northing-input', placeholder: 'Northing, e.g. 179645', inputMode: 'numeric' });
+  const bngForm = el(
+    'form',
+    { class: 'search-row' },
+    el('label', { htmlFor: 'easting-input', class: 'field-label' }, 'British National Grid (easting / northing)'),
+    el('div', { class: 'input-with-button' }, eastingInput, northingInput, searchButton()),
+  );
+  bngForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void resolve(async () => {
+      const easting = Number(eastingInput.value.trim());
+      const northing = Number(northingInput.value.trim());
+      // proj4 is heavy and only needed for grid input — load it on demand.
+      const { bngToWgs84, isValidBng } = await import('../api/grid');
+      if (eastingInput.value.trim() === '' || northingInput.value.trim() === '' || !isValidBng(easting, northing)) {
+        throw new GeocodeError('Enter a valid National Grid easting and northing (metres).');
+      }
+      const { lat, lng } = bngToWgs84(easting, northing);
+      return { lat, lng, label: `${easting}, ${northing} (BNG)` };
+    });
+  });
+
   root.append(
     el(
       'div',
@@ -104,6 +128,8 @@ export function createSearchPanel(
       postcodeForm,
       el('p', { class: 'search-divider' }, 'or'),
       coordsForm,
+      el('p', { class: 'search-divider' }, 'or'),
+      bngForm,
       error,
       el('p', { class: 'hint' }, 'Or click anywhere on the map.'),
     ),
@@ -111,7 +137,7 @@ export function createSearchPanel(
 
   return {
     setBusy(busy: boolean) {
-      for (const form of [postcodeForm, coordsForm]) {
+      for (const form of [postcodeForm, coordsForm, bngForm]) {
         for (const button of form.querySelectorAll('button')) button.disabled = busy;
       }
     },

@@ -133,6 +133,14 @@ test('the map is keyboard-operable: Enter checks the centre', async ({ page }) =
   await expect(page.locator('.hit-list')).toBeVisible();
 });
 
+test('British National Grid easting/northing runs a check', async ({ page }) => {
+  await page.fill('#easting-input', '529090');
+  await page.fill('#northing-input', '179645');
+  await page.press('#northing-input', 'Enter');
+  await expect(page.locator('.hit-list')).toBeVisible();
+  expect(page.url()).toContain('lat=51.50');
+});
+
 test('dark mode toggle flips the theme attribute', async ({ page }) => {
   const before = await page.locator('html').getAttribute('data-theme');
   await page.click('#theme-toggle');
