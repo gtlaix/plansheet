@@ -1,7 +1,8 @@
 import { entityPageUrl } from '../api/planningData';
 import { CATEGORY_LABELS, classifyChecked, impactTier, TIER_LABELS } from '../datasets';
 import { DATA_GAPS } from '../dataGaps';
-import type { LocationSelection, RegistryEntry, ScoredHit } from '../types';
+import { reportToMarkdown } from './markdown';
+import type { ReportData, ScoredHit } from '../types';
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -16,15 +17,44 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-export interface ReportData {
-  selection: LocationSelection;
-  nearestPostcode: string | null;
-  /** Sorted hits: administrative first, then constraints by descending impact. */
-  hits: ScoredHit[];
-  /** Every dataset that was queried (for the affirmative "checked" record). */
-  checked: RegistryEntry[];
-  /** Dataset slugs whose query failed — these could NOT be checked. */
-  failedDatasets: string[];
+export type { ReportData } from '../types';
+
+/** Build the "Copy Markdown" / "Download .md" export buttons for a report. */
+function exportButtons(data: ReportData): HTMLElement {
+  const copyBtn = el('button', { type: 'button', class: 'button' }, 'Copy Markdown');
+  copyBtn.addEventListener('click', () => {
+    void navigator.clipboard.writeText(reportToMarkdown(data)).then(
+      () => {
+        const original = copyBtn.textContent;
+        copyBtn.textContent = 'Copied ✓';
+        copyBtn.disabled = true;
+        setTimeout(() => {
+          copyBtn.textContent = original;
+          copyBtn.disabled = false;
+        }, 1600);
+      },
+      () => {
+        copyBtn.textContent = 'Copy failed';
+      },
+    );
+  });
+
+  const downloadBtn = el('button', { type: 'button', class: 'button button-secondary' }, 'Download .md');
+  downloadBtn.addEventListener('click', () => {
+    const blob = new Blob([reportToMarkdown(data)], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const slug = (data.selection.label ?? `${data.selection.lat},${data.selection.lng}`)
+      .replace(/[^a-z0-9]+/gi, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase();
+    const a = el('a', { href: url, download: `plansheet-${slug || 'report'}.md` });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  return el('div', { class: 'report-actions' }, copyBtn, downloadBtn);
 }
 
 export function renderLoading(root: HTMLElement, label: string): void {
@@ -38,7 +68,7 @@ export function renderIdle(root: HTMLElement): void {
     el(
       'div',
       { class: 'report idle' },
-      el('p', {}, 'Search by postcode, coordinates or UPRN — or click the map — to generate a plan sheet of every planning constraint and designation on that location.'),
+      el('p', {}, 'Search by postcode or coordinates — or click the map — to generate a PlanSheet of every planning constraint and designation on that location.'),
     ),
   );
 }
@@ -71,6 +101,7 @@ function hitCard(hit: ScoredHit): HTMLElement {
     ),
     el('p', { class: 'hit-dataset' }, hit.registry.label + (hit.qualifier ? ` — ${hit.qualifier}` : '')),
     ...(hit.registry.blurb ? [el('p', { class: 'hit-blurb' }, hit.registry.blurb)] : []),
+    ...(hit.detail ? [el('p', { class: 'hit-detail' }, el('strong', {}, 'This direction: '), hit.detail)] : []),
     ...(meta.length > 0 ? [el('p', { class: 'hit-meta' }, meta.join(' · '))] : []),
   );
 }
@@ -87,14 +118,14 @@ export function renderReport(root: HTMLElement, data: ReportData): void {
     el(
       'div',
       { class: 'report-header' },
-      el('h2', {}, 'Plan sheet'),
+      el('h2', {}, 'PlanSheet'),
       el('p', { class: 'report-sub' }, data.selection.label ?? coords),
       el(
         'p',
         { class: 'report-meta' },
         `${coords}${data.nearestPostcode ? ` · nearest postcode ${data.nearestPostcode}` : ''} · generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`,
       ),
-      el('button', { type: 'button', class: 'button button-secondary print-button', onclick: () => window.print() }, 'Print / save as PDF'),
+      exportButtons(data),
     ),
   );
 
@@ -121,9 +152,7 @@ export function renderReport(root: HTMLElement, data: ReportData): void {
     }
     adminSection.append(dl);
   } else {
-    adminSection.append(
-      el('p', { class: 'hint' }, 'No administrative areas found — this location may be outside England, which is all the Planning Data platform covers.'),
-    );
+    adminSection.append(el('p', { class: 'hint' }, 'No administrative areas returned for this point.'));
   }
   report.append(adminSection);
 
@@ -140,15 +169,6 @@ export function renderReport(root: HTMLElement, data: ReportData): void {
     );
   } else {
     constraintSection.append(el('p', {}, 'No planning constraints or designations intersect this point.'));
-  }
-
-  // Flood Zone 1 is the absence of a Zone 2/3 polygon — state it explicitly.
-  const floodChecked = data.checked.some((c) => c.slug === 'flood-risk-zone') && !data.failedDatasets.includes('flood-risk-zone');
-  const hasFloodHit = constraintHits.some((h) => h.registry.slug === 'flood-risk-zone');
-  if (floodChecked && !hasFloodHit) {
-    constraintSection.append(
-      el('p', { class: 'flood-note' }, 'Flood risk: this point is not in Flood Zone 2 or 3, so it falls in Flood Zone 1 (low probability of river or sea flooding).'),
-    );
   }
   report.append(constraintSection);
 

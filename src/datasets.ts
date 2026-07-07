@@ -35,6 +35,7 @@ export const OVERLAY: Record<string, OverlayEntry> = {
   'built-up-area': { category: 'administrative', impactScore: 0 },
   'title-boundary': { category: 'administrative', impactScore: 0, blurb: 'HM Land Registry registered title extent.' },
   'local-resilience-forum-boundary': { category: 'administrative', impactScore: 0 },
+  'local-plan-boundary': { category: 'administrative', impactScore: 0, blurb: 'The adopted local plan area covering this site.' },
 
   // --- Statutory heritage: the strongest constraints ---
   'scheduled-monument': { category: 'heritage', impactScore: 95, blurb: 'Nationally important monument; works need Scheduled Monument Consent.' },
@@ -59,6 +60,7 @@ export const OVERLAY: Record<string, OverlayEntry> = {
   ramsar: { category: 'ecology', impactScore: 90, blurb: 'Internationally important wetland, protected as a European site.' },
   'ancient-woodland': { category: 'ecology', impactScore: 85, blurb: 'Irreplaceable habitat; development causing loss is wholly exceptional.' },
   'national-nature-reserve': { category: 'ecology', impactScore: 80 },
+  'nutrient-neutrality-catchment': { category: 'ecology', impactScore: 55, blurb: 'Habitats Regulations: net-zero nutrient mitigation is required before residential development can proceed.' },
   'local-nature-reserve': { category: 'ecology', impactScore: 48 },
   'nature-improvement-area': { category: 'ecology', impactScore: 40 },
 
@@ -86,10 +88,22 @@ export const OVERLAY: Record<string, OverlayEntry> = {
   'design-code-area': { category: 'info', impactScore: 22, blurb: 'A design code applies to development here.', partialCoverage: true },
   'brownfield-land': { category: 'info', impactScore: 20, blurb: 'On the brownfield register — generally an opportunity, not a constraint.', partialCoverage: true },
   'brownfield-site': { category: 'info', impactScore: 20, partialCoverage: true },
-  'local-plan-boundary': { category: 'info', impactScore: 10, partialCoverage: true },
   'educational-establishment': { category: 'info', impactScore: 12 },
   'transport-access-node': { category: 'info', impactScore: 8 },
+  // Minerals/waste plan areas are strategic policy boundaries, not site-level
+  // constraints for most applications — kept informational, at the bottom.
+  'minerals-plan-boundary': { category: 'info', impactScore: 8, blurb: 'Within a minerals plan area (strategic policy — informational for most development).' },
+  'waste-plan-boundary': { category: 'info', impactScore: 8, blurb: 'Within a waste plan area (strategic policy — informational for most development).' },
 };
+
+/**
+ * Nationwide "boundary" layers that intersect every English point and carry no
+ * planning signal (e.g. the England outline). Removed from the registry so they
+ * are never queried or shown. Confirm exact slugs against the live console
+ * `unmapped` warning on first run (they otherwise surface in "Other
+ * designations").
+ */
+export const EXCLUDED_SLUGS = new Set<string>(['boundary']);
 
 export const CATEGORY_LABELS: Record<Category, string> = {
   administrative: 'Administrative',
@@ -112,6 +126,7 @@ export function buildRegistry(apiDatasets: ApiDataset[]): RegistryEntry[] {
 
   for (const d of apiDatasets) {
     if (d.typology !== 'geography') continue;
+    if (EXCLUDED_SLUGS.has(d.dataset)) continue;
     if (seen.has(d.dataset)) continue;
     seen.add(d.dataset);
     const overlay = OVERLAY[d.dataset];
@@ -130,6 +145,7 @@ export function buildRegistry(apiDatasets: ApiDataset[]): RegistryEntry[] {
   // every curated slug (minus any already present).
   if (entries.length === 0) {
     for (const [slug, overlay] of Object.entries(OVERLAY)) {
+      if (EXCLUDED_SLUGS.has(slug)) continue;
       entries.push({
         slug,
         label: overlay.label ?? titleCase(slug),
@@ -163,6 +179,35 @@ const GRADE_SCORES: Record<string, Record<string, number>> = {
 /** Flood Zone 3 is a far greater constraint than Zone 2. */
 const FLOOD_LEVEL_SCORES: Record<string, number> = { '3': 80, '2': 50, '1': 10 };
 
+/**
+ * Agricultural Land Classification only matters when the land is farmed:
+ * "urban"/"non-agricultural" is noise; the best-and-most-versatile grades
+ * (1, 2, 3a) carry real policy weight. Keys are lower-cased grade strings with
+ * the "grade " prefix stripped. Field name to confirm live (ISSUES-1).
+ */
+const ALC_GRADE_SCORES: Record<string, number> = {
+  '1': 50,
+  '2': 48,
+  '3a': 45,
+  '3b': 22,
+  '3': 22,
+  '4': 18,
+  '5': 15,
+  urban: 8,
+  'non-agricultural': 8,
+  'non agricultural': 8,
+};
+
+function alcGrade(entity: PlanningEntity): string | undefined {
+  const raw =
+    entity['agricultural-land-classification-grade'] ??
+    entity['agricultural-land-classification'] ??
+    entity['grade'];
+  if (typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  return trimmed === '' ? undefined : trimmed;
+}
+
 function entityGrade(entity: PlanningEntity): string | undefined {
   const grade =
     entity['listed-building-grade'] ?? entity['park-and-garden-grade'] ?? entity['grade'];
@@ -176,6 +221,7 @@ function entityGrade(entity: PlanningEntity): string | undefined {
 export function scoreEntity(entity: PlanningEntity, registry: RegistryEntry): ScoredHit {
   let score = registry.impactScore;
   let qualifier: string | undefined;
+  let detail: string | undefined;
 
   const gradeTable = GRADE_SCORES[registry.slug];
   if (gradeTable) {
@@ -194,7 +240,33 @@ export function scoreEntity(entity: PlanningEntity, registry: RegistryEntry): Sc
     }
   }
 
-  return { entity, registry, score, qualifier };
+  if (registry.slug === 'agricultural-land-classification') {
+    const grade = alcGrade(entity);
+    if (grade) {
+      const key = grade.toLowerCase().replace(/^grade\s*/, '');
+      if (ALC_GRADE_SCORES[key] !== undefined) score = ALC_GRADE_SCORES[key];
+      qualifier = grade;
+    }
+  }
+
+  if (registry.slug === 'article-4-direction-area') {
+    detail = article4Detail(entity);
+  }
+
+  return { entity, registry, score, qualifier, detail };
+}
+
+/**
+ * What an Article 4 direction actually removes — the useful bit for a planner.
+ * The platform records this under one of a few field names depending on the
+ * submitting authority; take the first present (confirm live, ISSUES-1).
+ */
+export function article4Detail(entity: PlanningEntity): string | undefined {
+  for (const field of ['description', 'notes', 'permitted-development-rights', 'permitted-development-right']) {
+    const value = entity[field];
+    if (typeof value === 'string' && value.trim() !== '') return value.trim();
+  }
+  return undefined;
 }
 
 /**

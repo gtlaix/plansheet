@@ -63,7 +63,7 @@ export interface RegistryEntry {
 export interface LocationSelection {
   lat: number;
   lng: number;
-  /** Human-readable origin of the selection, e.g. "SW1A 1AA" or "UPRN 100023336956". */
+  /** Human-readable origin of the selection, e.g. "SW1A 1AA" or "51.50140, -0.14190". */
   label?: string;
 }
 
@@ -75,4 +75,18 @@ export interface ScoredHit {
   score: number;
   /** e.g. "Grade I" or "Flood Zone 3" — qualifier derived from entity fields. */
   qualifier?: string;
+  /** Longer per-entity note, e.g. what an Article 4 direction removes. */
+  detail?: string;
+}
+
+/** Everything the plan sheet renders — shared by the on-screen and Markdown views. */
+export interface ReportData {
+  selection: LocationSelection;
+  nearestPostcode: string | null;
+  /** Sorted hits: administrative first, then constraints by descending impact. */
+  hits: ScoredHit[];
+  /** Every dataset that was queried (for the affirmative "checked" record). */
+  checked: RegistryEntry[];
+  /** Dataset slugs whose query failed — these could NOT be checked. */
+  failedDatasets: string[];
 }

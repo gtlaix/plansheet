@@ -2,7 +2,7 @@ import './style.css';
 import { fetchAllDatasets, queryEntities, queryGeojson } from './api/planningData';
 import { reverseGeocode } from './api/geocode';
 import { buildRegistry, scoreEntity, sortHits } from './datasets';
-import { createMap } from './ui/map';
+import { createMap, ENGLAND_BOUNDS } from './ui/map';
 import { createSearchPanel } from './ui/search';
 import { renderError, renderIdle, renderLoading, renderReport } from './ui/report';
 import type { LocationSelection, RegistryEntry, ScoredHit } from './types';
@@ -13,10 +13,9 @@ const reportRoot = document.getElementById('report-root')!;
 
 const registryPromise: Promise<RegistryEntry[]> = fetchAllDatasets().then(buildRegistry);
 
-// Generous bounding box around England (Scilly → Berwick). Catches clicks in
-// the sea or on the continent before wasting a full query round (ISSUES-11);
-// Scotland/Wales still rely on the empty-admin message in the report.
-const ENGLAND_BBOX = { south: 49.8, north: 55.9, west: -6.5, east: 1.8 };
+// Admin datasets only exist for England — their absence is how we know a point
+// (inside the bbox but in Wales/Scotland) is out of scope.
+const ADMIN_SLUGS = ['region', 'local-authority-district', 'local-planning-authority'];
 
 let runToken = 0;
 let runAbort: AbortController | null = null;
@@ -29,10 +28,10 @@ async function runCheck(selection: LocationSelection): Promise<void> {
   const label = selection.label ?? `${selection.lat.toFixed(5)}, ${selection.lng.toFixed(5)}`;
 
   if (
-    selection.lat < ENGLAND_BBOX.south ||
-    selection.lat > ENGLAND_BBOX.north ||
-    selection.lng < ENGLAND_BBOX.west ||
-    selection.lng > ENGLAND_BBOX.east
+    selection.lat < ENGLAND_BOUNDS.south ||
+    selection.lat > ENGLAND_BOUNDS.north ||
+    selection.lng < ENGLAND_BOUNDS.west ||
+    selection.lng > ENGLAND_BOUNDS.east
   ) {
     renderError(reportRoot, 'That location is outside England — the Planning Data platform only covers England.');
     return;
@@ -60,6 +59,16 @@ async function runCheck(selection: LocationSelection): Promise<void> {
       })
       .filter((h): h is ScoredHit => h !== null);
     const sorted = sortHits(hits);
+
+    // Inside the bbox but no administrative area = not in England (Wales/Scotland
+    // or offshore). Only trust this when the admin queries actually succeeded.
+    const hasAdmin = sorted.some((h) => h.registry.category === 'administrative');
+    const adminQueryOk = ADMIN_SLUGS.some((s) => !result.failedDatasets.includes(s));
+    if (!hasAdmin && adminQueryOk) {
+      map.clearOverlays();
+      renderError(reportRoot, 'This location is not in England — the Planning Data platform only covers England.');
+      return;
+    }
 
     renderReport(reportRoot, {
       selection,
@@ -98,6 +107,42 @@ async function runCheck(selection: LocationSelection): Promise<void> {
 const map = createMap(mapEl, (lat, lng) => void runCheck({ lat, lng }));
 const search = createSearchPanel(searchRoot, (loc) => void runCheck(loc));
 renderIdle(reportRoot);
+
+// --- Dark mode: persisted, defaulting to the OS preference ---
+const THEME_KEY = 'plansheet-theme';
+const themeToggle = document.getElementById('theme-toggle');
+type Theme = 'light' | 'dark';
+
+function applyTheme(theme: Theme): void {
+  document.documentElement.setAttribute('data-theme', theme);
+  map.setDark(theme === 'dark');
+  if (themeToggle) {
+    themeToggle.setAttribute('aria-pressed', String(theme === 'dark'));
+    themeToggle.textContent = theme === 'dark' ? '☀ Light' : '☾ Dark';
+  }
+}
+
+function initialTheme(): Theme {
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === 'light' || saved === 'dark') return saved;
+  } catch {
+    // storage unavailable
+  }
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+let theme = initialTheme();
+applyTheme(theme);
+themeToggle?.addEventListener('click', () => {
+  theme = theme === 'dark' ? 'light' : 'dark';
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch {
+    // storage unavailable — choice just won't persist
+  }
+  applyTheme(theme);
+});
 
 // Print the full record: expand collapsed sections for printing (ISSUES-4).
 const detailsState = new WeakMap<HTMLDetailsElement, boolean>();

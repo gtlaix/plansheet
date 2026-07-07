@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  article4Detail,
   buildRegistry,
   classifyChecked,
   DEFAULT_IMPACT,
+  EXCLUDED_SLUGS,
   impactTier,
   OVERLAY,
   scoreEntity,
@@ -58,6 +60,22 @@ describe('buildRegistry', () => {
     expect(registry.length).toBe(Object.keys(OVERLAY).length);
     expect(registry.map((r) => r.slug)).toContain('listed-building');
   });
+
+  it('drops excluded nationwide boundary slugs', () => {
+    const api: ApiDataset[] = [
+      { dataset: 'green-belt', name: 'Green belt', typology: 'geography' },
+      { dataset: 'boundary', name: 'England', typology: 'geography' },
+    ];
+    const slugs = buildRegistry(api).map((r) => r.slug);
+    expect(EXCLUDED_SLUGS.has('boundary')).toBe(true);
+    expect(slugs).toContain('green-belt');
+    expect(slugs).not.toContain('boundary');
+  });
+
+  it('treats local plan boundary as administrative context, not a constraint', () => {
+    expect(reg('local-plan-boundary').category).toBe('administrative');
+    expect(reg('local-plan-boundary').impactScore).toBe(0);
+  });
 });
 
 describe('scoreEntity modifiers', () => {
@@ -84,6 +102,31 @@ describe('scoreEntity modifiers', () => {
   it('uses the base score when no modifier field is present', () => {
     const registry = reg('green-belt');
     expect(scoreEntity(entity('green-belt'), registry).score).toBe(registry.impactScore);
+  });
+
+  it('scores agricultural land by grade: best-and-most-versatile > poorer > urban', () => {
+    const registry = reg('agricultural-land-classification');
+    const field = 'agricultural-land-classification-grade';
+    const grade1 = scoreEntity(entity('agricultural-land-classification', { [field]: 'Grade 1' }), registry);
+    const grade3b = scoreEntity(entity('agricultural-land-classification', { [field]: 'Grade 3b' }), registry);
+    const urban = scoreEntity(entity('agricultural-land-classification', { [field]: 'Urban' }), registry);
+    expect(grade1.score).toBeGreaterThan(grade3b.score);
+    expect(grade3b.score).toBeGreaterThan(urban.score);
+    expect(grade1.qualifier).toBe('Grade 1');
+    expect(impactTier(urban.score)).toBe('informational');
+  });
+
+  it('surfaces what an Article 4 direction removes', () => {
+    const registry = reg('article-4-direction-area');
+    const withDetail = scoreEntity(
+      entity('article-4-direction-area', { description: 'Removes PD right for C3 to C4 (HMO) change of use.' }),
+      registry,
+    );
+    expect(withDetail.detail).toContain('C3 to C4');
+    expect(scoreEntity(entity('article-4-direction-area'), registry).detail).toBeUndefined();
+    expect(article4Detail(entity('article-4-direction-area', { notes: 'Removes fenestration PD rights.' }))).toBe(
+      'Removes fenestration PD rights.',
+    );
   });
 });
 

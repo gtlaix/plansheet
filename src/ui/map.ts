@@ -10,18 +10,33 @@ export const TIER_COLORS: Record<ImpactTier, string> = {
   informational: '#5f6b7a',
 };
 
+/** Generous envelope around England (Scilly → Berwick). Also used by main.ts. */
+export const ENGLAND_BOUNDS = { south: 49.8, north: 55.9, west: -6.5, east: 1.8 };
+
 export interface MapController {
   setPin(lat: number, lng: number): void;
   showOverlays(collection: GeoJSON.FeatureCollection, scoreBySlug: Map<string, number>): void;
   clearOverlays(): void;
+  setDark(dark: boolean): void;
 }
 
 /**
  * Initialise the Leaflet map. `onPick` fires when the user clicks the map to
- * choose a location.
+ * choose a location. The view is framed and locked to England so the continent
+ * (and most of Scotland) can't be panned in.
  */
 export function createMap(container: HTMLElement, onPick: (lat: number, lng: number) => void): MapController {
-  const map = L.map(container, { zoomControl: true }).setView([52.6, -1.6], 6);
+  const bounds = L.latLngBounds(
+    [ENGLAND_BOUNDS.south, ENGLAND_BOUNDS.west],
+    [ENGLAND_BOUNDS.north, ENGLAND_BOUNDS.east],
+  );
+  const map = L.map(container, {
+    zoomControl: true,
+    minZoom: 6,
+    maxBounds: bounds,
+    maxBoundsViscosity: 1,
+  });
+  map.fitBounds(bounds);
 
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -76,6 +91,10 @@ export function createMap(container: HTMLElement, onPick: (lat: number, lng: num
 
     clearOverlays() {
       overlayGroup.clearLayers();
+    },
+
+    setDark(dark: boolean) {
+      container.classList.toggle('dark-map', dark);
     },
   };
 }

@@ -1,12 +1,13 @@
-# Plansheet
+# PlanSheet
 
 Every planning constraint on a site, in one sheet — for any location in England.
 
-Plansheet is a static single-page app built on the
+PlanSheet is a static single-page app built on the
 [Planning Data platform](https://www.planning.data.gov.uk) (MHCLG). Give it a location —
-postcode, coordinates, UPRN, or a click on the map — and it generates a **plan sheet**: a
-printable report of every planning designation and constraint intersecting that point, from
-listed buildings and conservation areas to green belt, flood risk zones and article 4 directions.
+postcode, coordinates, or a click on the map — and it generates a **PlanSheet**: a report of
+every planning designation and constraint intersecting that point, from listed buildings and
+conservation areas to green belt, flood risk zones and article 4 directions. Export it as
+Markdown to paste straight into an AI appraisal prompt.
 
 ## How the report is ordered
 
@@ -15,8 +16,9 @@ listed buildings and conservation areas to green belt, flood risk zones and arti
    (0–100) reflecting how strongly it constrains the planning potential of a site, with
    per-entity modifiers: a Grade I listing scores higher than Grade II, Flood Zone 3 far higher
    than Zone 2. The greatest constraint always appears first.
-3. **Checked with no constraint found** — an affirmative record of every dataset queried,
-   including an explicit Flood Zone 1 statement when no Zone 2/3 polygon intersects the point.
+3. **Checked with no constraint found** — an affirmative record of every dataset queried.
+   Datasets with incomplete national coverage (LPA-sourced, e.g. article 4, TPOs) are listed
+   separately as "no data found", never as "clear".
 
 ## Comprehensive by construction
 
@@ -52,11 +54,8 @@ Pushes to `main` deploy to GitHub Pages via `.github/workflows/deploy.yml` (enab
 |---|---|---|
 | [Planning Data API](https://www.planning.data.gov.uk/docs) | Datasets & entity intersection queries | No |
 | [postcodes.io](https://postcodes.io) | Postcode ↔ coordinates | No |
-| [OS Places API](https://osdatahub.os.uk/) | UPRN → coordinates | Yes — user-supplied, stored only in the browser (`localStorage`) |
 
-UPRN lookup is the only feature needing a key, because there is no keyless public UPRN
-geocoding service (OS Open UPRN is bulk-download only). Get a free key at
-[osdatahub.os.uk](https://osdatahub.os.uk/), open the UPRN tab and paste it in.
+No API keys are needed — the app is fully static with no backend or bundled secrets.
 
 ## Data licensing
 
