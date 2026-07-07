@@ -57,6 +57,14 @@ Pushes to `main` deploy to GitHub Pages via `.github/workflows/deploy.yml` (enab
 
 No API keys are needed — the app is fully static with no backend or bundled secrets.
 
+### Basemap
+
+The map uses OpenStreetMap tiles by default. For firm-wide/production use, OSM's
+[tile usage policy](https://operations.osmfoundation.org/policies/tiles/) applies — switch to a
+proper provider (OS Maps API, MapTiler, Carto) by editing the single `BASEMAP` config in
+[`src/ui/map.ts`](src/ui/map.ts) (URL, attribution, max zoom; append any provider key to the URL).
+Nothing else depends on the provider.
+
 ## Data licensing
 
 - Planning Data © Crown copyright, [Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/); some datasets carry additional attribution — see each dataset page on planning.data.gov.uk.

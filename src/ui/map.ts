@@ -13,6 +13,18 @@ export const TIER_COLORS: Record<ImpactTier, string> = {
 /** Generous envelope around England (Scilly → Berwick). Also used by main.ts. */
 export const ENGLAND_BOUNDS = { south: 49.8, north: 55.9, west: -6.5, east: 1.8 };
 
+/**
+ * Basemap tile source. OSM is the default for personal use — check its tile
+ * usage policy before deploying firm-wide (ISSUES-5). To switch to OS Maps API,
+ * MapTiler or Carto, change these three values (and add any key to the URL);
+ * nothing else in the app depends on the provider. See the README.
+ */
+export const BASEMAP = {
+  url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  maxZoom: 19,
+};
+
 export interface MapController {
   setPin(lat: number, lng: number): void;
   showOverlays(collection: GeoJSON.FeatureCollection, scoreBySlug: Map<string, number>): void;
@@ -62,10 +74,7 @@ export function createMap(container: HTMLElement, onPick: (lat: number, lng: num
   });
   map.fitBounds(bounds);
 
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  }).addTo(map);
+  L.tileLayer(BASEMAP.url, { maxZoom: BASEMAP.maxZoom, attribution: BASEMAP.attribution }).addTo(map);
 
   // Mask sits above tiles but below the overlay geometries and the pin.
   const maskPane = map.createPane('england-mask');

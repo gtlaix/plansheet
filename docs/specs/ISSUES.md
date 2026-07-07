@@ -39,10 +39,14 @@ printing closed details even with the current CSS. Fix: `window.addEventListener
 → set `open = true` (and restore on `afterprint`).
 
 ## 🟠 ISSUES-5 — OSM public tiles unsuitable for heavy production use
+
+> **STATUS: PARTLY ADDRESSED (basemap is now config-driven).** The tile URL + attribution +
+> max-zoom live in a single `BASEMAP` config in `src/ui/map.ts`, so switching to OS Maps API /
+> MapTiler / Carto is a one-place change (documented in the README). Picking and wiring an actual
+> provider (and any key handling) remains a product decision — deliberately left to the user.
 `tile.openstreetmap.org` has a fair-use policy; a firm-wide tool should switch to a proper
 provider (OS Maps API vector/raster tiles — free tier, and more appropriate basemap for UK
-planning work; or MapTiler/Carto). Config-driven tile URL + attribution; keep OSM as default
-fallback for personal use.
+planning work; or MapTiler/Carto).
 
 ## 🟠 ISSUES-6 — Reverse-geocode postcode can mislabel rural points
 
