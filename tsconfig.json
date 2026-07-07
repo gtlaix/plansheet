@@ -14,5 +14,8 @@
     "noEmit": true,
     "types": ["vite/client"]
   },
-  "include": ["src", "tests"]
+  "include": ["src", "tests"],
+  // tests/e2e is compiled by Playwright at runtime and uses Node globals;
+  // keep it out of the browser-lib typecheck.
+  "exclude": ["tests/e2e"]
 }

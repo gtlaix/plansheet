@@ -86,6 +86,9 @@ Cheap geofence: bounding-box prefilter + message before querying; don't over-inv
 admin-hit check is the real signal.
 
 ## 🟡 ISSUES-12 — Playwright smoke test is not in CI
-The stubbed-API UI test lives in session scratch only. Port it to `tests/e2e/` with
-`@playwright/test`, stub routes exactly as unit fixtures do, run in the deploy workflow before
-build. Keep it hermetic — no live API calls in CI.
+
+> **STATUS: FIXED (ported to `tests/e2e/report.spec.ts` with `@playwright/test`; runs in the
+> deploy workflow before build via `npm run test:e2e`).**
+The stubbed-API UI test now lives in `tests/e2e/` (six hermetic specs, routes stubbed exactly as
+the unit fixtures) and gates the deploy. No live API calls in CI. Locally, point at the
+pre-installed browser with `PW_CHROMIUM=/opt/pw-browsers/chromium-*/chrome-linux/chrome`.
