@@ -1,5 +1,5 @@
 import './style.css';
-import { fetchAllDatasets, queryEntities, queryGeojson } from './api/planningData';
+import { fetchAllDatasets, fetchBorderGeojson, queryEntities, queryGeojson } from './api/planningData';
 import { reverseGeocode } from './api/geocode';
 import { buildRegistry, scoreEntity, sortHits } from './datasets';
 import { createMap, ENGLAND_BOUNDS } from './ui/map';
@@ -107,6 +107,9 @@ async function runCheck(selection: LocationSelection): Promise<void> {
 const map = createMap(mapEl, (lat, lng) => void runCheck({ lat, lng }));
 const search = createSearchPanel(searchRoot, (loc) => void runCheck(loc));
 renderIdle(reportRoot);
+
+// Grey out everything outside England using the ONS `border` layer (best-effort).
+void fetchBorderGeojson().then((border) => map.showEnglandMask(border));
 
 // --- Dark mode: persisted, defaulting to the OS preference ---
 const THEME_KEY = 'plansheet-theme';

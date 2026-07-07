@@ -3,15 +3,18 @@
 Numbered for cross-referencing from specs/PRs. Severity: 🔴 correctness · 🟠 robustness · 🟡 polish.
 
 ## 🔴 ISSUES-1 — Overlay table unverified against the live dataset list
-`src/datasets.ts` OVERLAY was written against documented platform behaviour; the build
-environment could not reach `planning.data.gov.uk`. Unmapped live slugs are still queried (by
-design) but land unranked in "Other designations", and any *misspelt* overlay slug silently
-never matches. **Task:** dump `GET /dataset.json`, diff `typology: geography` slugs against
-OVERLAY keys, fix spellings, add overlay entries for anything notable that's missing
-(candidates seen in the wild: `heritage-coast`? `national-nature-reserve`? `flood-storage-area`?
-— confirm each exists), and record the reconciliation date in a comment. Also verify per-entity
-field names used by modifiers: `listed-building-grade`, `flood-risk-level`, and the
-park-and-garden grade field (we currently fall back to `grade`).
+
+> **STATUS: RESOLVED (reconciled 2026-07-07 against the MHCLG catalogue,
+> `digital-land/specification`: `specification/dataset.csv` + `dataset-field.csv`).**
+The overlay was written against documented behaviour because the sandbox can't reach
+`planning.data.gov.uk`. Reconciled via WebFetch of the GitHub specification instead: the full
+`typology: geography` list was diffed against OVERLAY and ~35 previously-unranked datasets were
+added with categories/scores; the "England Border" layer was confirmed as the `border` slug (not
+`boundary`) and excluded along with the addressing layers (`address`/`postcode`/`street`/`uprn`);
+`minerals-plan-boundary` was corrected to `mineral-safeguarding-area`; and the modifier fields
+`agricultural-land-classification-grade` and article-4 `permitted-development-rights` were
+confirmed. Entity-level *values* (whether a given authority populated a field) still warrant a
+live spot-check on first real use.
 
 ## 🔴 ISSUES-2 — No pagination on entity queries
 

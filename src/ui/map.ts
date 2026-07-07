@@ -18,6 +18,30 @@ export interface MapController {
   showOverlays(collection: GeoJSON.FeatureCollection, scoreBySlug: Map<string, number>): void;
   clearOverlays(): void;
   setDark(dark: boolean): void;
+  showEnglandMask(border: GeoJSON.FeatureCollection | null): void;
+}
+
+/** A rectangle comfortably larger than the map's max bounds, for the mask's outer ring. */
+const MASK_OUTER: L.LatLngTuple[] = [
+  [40, -25],
+  [40, 25],
+  [62, 25],
+  [62, -25],
+];
+
+/** Collect every exterior ring (as [lat,lng]) from England's Polygon/MultiPolygon features. */
+function englandRings(border: GeoJSON.FeatureCollection): L.LatLngTuple[][] {
+  const rings: L.LatLngTuple[][] = [];
+  const addPolygon = (polygon: GeoJSON.Position[][]) => {
+    const exterior = polygon[0];
+    if (exterior?.length) rings.push(exterior.map(([lng, lat]) => [lat, lng] as L.LatLngTuple));
+  };
+  for (const feature of border.features) {
+    const geom = feature.geometry;
+    if (geom?.type === 'Polygon') addPolygon(geom.coordinates);
+    else if (geom?.type === 'MultiPolygon') geom.coordinates.forEach(addPolygon);
+  }
+  return rings;
 }
 
 /**
@@ -42,6 +66,12 @@ export function createMap(container: HTMLElement, onPick: (lat: number, lng: num
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(map);
+
+  // Mask sits above tiles but below the overlay geometries and the pin.
+  const maskPane = map.createPane('england-mask');
+  maskPane.style.zIndex = '350';
+  maskPane.style.pointerEvents = 'none';
+  let mask: L.Polygon | null = null;
 
   const overlayGroup = L.featureGroup().addTo(map);
   let pin: L.CircleMarker | null = null;
@@ -95,6 +125,25 @@ export function createMap(container: HTMLElement, onPick: (lat: number, lng: num
 
     setDark(dark: boolean) {
       container.classList.toggle('dark-map', dark);
+    },
+
+    showEnglandMask(border) {
+      if (mask) {
+        mask.remove();
+        mask = null;
+      }
+      if (!border) return;
+      const holes = englandRings(border);
+      if (holes.length === 0) return;
+      // One polygon: outer rectangle + England rings as holes = everything
+      // outside England is filled.
+      mask = L.polygon([MASK_OUTER, ...holes], {
+        pane: 'england-mask',
+        stroke: false,
+        fillColor: '#334155',
+        fillOpacity: 0.55,
+        interactive: false,
+      }).addTo(map);
     },
   };
 }

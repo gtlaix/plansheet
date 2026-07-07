@@ -61,20 +61,34 @@ describe('buildRegistry', () => {
     expect(registry.map((r) => r.slug)).toContain('listed-building');
   });
 
-  it('drops excluded nationwide boundary slugs', () => {
+  it('drops the England border and addressing noise slugs', () => {
     const api: ApiDataset[] = [
       { dataset: 'green-belt', name: 'Green belt', typology: 'geography' },
-      { dataset: 'boundary', name: 'England', typology: 'geography' },
+      { dataset: 'border', name: 'Border', typology: 'geography' },
+      { dataset: 'uprn', name: 'UPRN', typology: 'geography' },
+      { dataset: 'postcode', name: 'Postcode', typology: 'geography' },
     ];
     const slugs = buildRegistry(api).map((r) => r.slug);
-    expect(EXCLUDED_SLUGS.has('boundary')).toBe(true);
+    expect(EXCLUDED_SLUGS.has('border')).toBe(true);
+    expect(EXCLUDED_SLUGS.has('uprn')).toBe(true);
     expect(slugs).toContain('green-belt');
-    expect(slugs).not.toContain('boundary');
+    expect(slugs).not.toContain('border');
+    expect(slugs).not.toContain('uprn');
+    expect(slugs).not.toContain('postcode');
   });
 
   it('treats local plan boundary as administrative context, not a constraint', () => {
     expect(reg('local-plan-boundary').category).toBe('administrative');
     expect(reg('local-plan-boundary').impactScore).toBe(0);
+  });
+
+  it('ranks the reconciled datasets in sensible categories', () => {
+    expect(reg('metropolitan-open-land').category).toBe('landscape');
+    expect(reg('control-of-major-accident-hazards-site').category).toBe('hazard');
+    expect(reg('mineral-safeguarding-area').category).toBe('info');
+    expect(reg('main-river').category).toBe('flood');
+    // the corrected minerals slug is present; the wrong guess is gone
+    expect(OVERLAY['minerals-plan-boundary']).toBeUndefined();
   });
 });
 
@@ -185,11 +199,18 @@ describe('classifyChecked (ISSUES-3: zero-hit ≠ clear for partial datasets)', 
 
 describe('data gaps register', () => {
   it('has substantive entries and no id collides with an overlay slug', () => {
-    expect(DATA_GAPS.length).toBeGreaterThanOrEqual(20);
+    expect(DATA_GAPS.length).toBeGreaterThanOrEqual(15);
     const overlaySlugs = new Set(Object.keys(OVERLAY));
     for (const gap of DATA_GAPS) {
       expect(overlaySlugs.has(gap.id)).toBe(false);
       expect(gap.whereToCheck.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('no longer lists topics that are now platform datasets', () => {
+    const ids = new Set(DATA_GAPS.map((g) => g.id));
+    for (const removed of ['commons', 'hse', 'contaminated-land', 'safeguarding-air', 'safeguarding-infra']) {
+      expect(ids.has(removed)).toBe(false);
     }
   });
 });

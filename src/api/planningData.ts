@@ -170,3 +170,45 @@ export async function queryGeojson(
 export function entityPageUrl(entityId: number): string {
   return `${PLANNING_DATA_BASE}/entity/${entityId}`;
 }
+
+const BORDER_CACHE_KEY = 'plansheet-border-v1';
+const BORDER_CACHE_SCHEMA = 1;
+
+interface BorderCache {
+  schemaVersion: number;
+  geojson: GeoJSON.FeatureCollection;
+}
+
+/**
+ * Fetch the ONS England outline (`border` dataset) as GeoJSON for the map mask,
+ * cached indefinitely in localStorage (national boundaries barely change).
+ * Best-effort: returns null on any failure so the map still works without it.
+ */
+export async function fetchBorderGeojson(fetchFn: typeof fetch = fetch): Promise<GeoJSON.FeatureCollection | null> {
+  try {
+    const raw = localStorage.getItem(BORDER_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as BorderCache;
+      if (parsed.schemaVersion === BORDER_CACHE_SCHEMA && parsed.geojson?.features?.length) {
+        return parsed.geojson;
+      }
+    }
+  } catch {
+    // fall through to a fresh fetch
+  }
+  try {
+    const res = await fetchFn(`${PLANNING_DATA_BASE}/entity.geojson?dataset=border&limit=10`);
+    if (!res.ok) throw new Error(`border geojson returned ${res.status}`);
+    const geojson = (await res.json()) as GeoJSON.FeatureCollection;
+    if (!geojson.features?.length) return null;
+    try {
+      localStorage.setItem(BORDER_CACHE_KEY, JSON.stringify({ schemaVersion: BORDER_CACHE_SCHEMA, geojson }));
+    } catch {
+      // caching is best-effort
+    }
+    return geojson;
+  } catch (err) {
+    console.warn('plansheet: could not fetch England border (mask skipped)', err);
+    return null;
+  }
+}

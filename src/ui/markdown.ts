@@ -52,7 +52,7 @@ export function reportToMarkdown(data: ReportData): string {
       lines.push(`- **Impact:** ${tier} · ${CATEGORY_LABELS[hit.registry.category]}`);
       lines.push(`- **Dataset:** ${hit.registry.label}`);
       if (hit.registry.blurb) lines.push(`- ${hit.registry.blurb}`);
-      if (hit.detail) lines.push(`- **This direction:** ${hit.detail}`);
+      if (hit.detail) lines.push(`- **Removes:** ${hit.detail}`);
       if (hit.entity.reference) lines.push(`- **Reference:** ${hit.entity.reference}`);
       if (hit.entity['start-date']) lines.push(`- **Since:** ${hit.entity['start-date']}`);
       lines.push(`- **Source:** ${entityPageUrl(hit.entity.entity)}`, '');

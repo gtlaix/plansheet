@@ -101,7 +101,7 @@ function hitCard(hit: ScoredHit): HTMLElement {
     ),
     el('p', { class: 'hit-dataset' }, hit.registry.label + (hit.qualifier ? ` — ${hit.qualifier}` : '')),
     ...(hit.registry.blurb ? [el('p', { class: 'hit-blurb' }, hit.registry.blurb)] : []),
-    ...(hit.detail ? [el('p', { class: 'hit-detail' }, el('strong', {}, 'This direction: '), hit.detail)] : []),
+    ...(hit.detail ? [el('p', { class: 'hit-detail' }, el('strong', {}, 'Removes: '), hit.detail)] : []),
     ...(meta.length > 0 ? [el('p', { class: 'hit-meta' }, meta.join(' · '))] : []),
   );
 }

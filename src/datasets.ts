@@ -50,7 +50,10 @@ export const OVERLAY: Record<string, OverlayEntry> = {
   'park-and-garden': { category: 'heritage', impactScore: 66, blurb: 'Registered historic park or garden; harm carries significant planning weight.' },
   battlefield: { category: 'heritage', impactScore: 65 },
   'archaeological-priority-area': { category: 'heritage', impactScore: 62, blurb: 'Archaeological assessment likely required before development.', partialCoverage: true },
+  'non-designated-archeology-asset-of-national-importance': { category: 'heritage', impactScore: 58, blurb: 'Archaeology of national importance though not scheduled; strong weight against harm.' },
+  'heritage-action-zone': { category: 'heritage', impactScore: 52, blurb: 'Historic England regeneration area focused on heritage-led renewal.' },
   'locally-listed-building': { category: 'heritage', impactScore: 45, blurb: 'On the local heritage list; a material consideration in decisions.', partialCoverage: true },
+  'non-designated-and-locally-listed-historic-asset': { category: 'heritage', impactScore: 44, blurb: 'Non-designated heritage asset; weighed in the planning balance.', partialCoverage: true },
   'certificate-of-immunity': { category: 'info', impactScore: 15, blurb: 'Certified immune from listing for five years — reduces heritage risk.' },
 
   // --- Statutory ecology ---
@@ -61,18 +64,42 @@ export const OVERLAY: Record<string, OverlayEntry> = {
   'ancient-woodland': { category: 'ecology', impactScore: 85, blurb: 'Irreplaceable habitat; development causing loss is wholly exceptional.' },
   'national-nature-reserve': { category: 'ecology', impactScore: 80 },
   'nutrient-neutrality-catchment': { category: 'ecology', impactScore: 55, blurb: 'Habitats Regulations: net-zero nutrient mitigation is required before residential development can proceed.' },
+  'wildbelt': { category: 'ecology', impactScore: 50, blurb: 'Land identified to recover nature; development expected to protect its potential.' },
   'local-nature-reserve': { category: 'ecology', impactScore: 48 },
+  'best-and-most-versatile-agricultural-land': { category: 'ecology', impactScore: 48, blurb: 'Best and most versatile farmland (Grades 1–3a); its loss carries policy weight.' },
+  'common-land-and-village-green': { category: 'ecology', impactScore: 55, blurb: 'Registered common or village green; building on it is tightly restricted.', partialCoverage: true },
+  'open-space': { category: 'ecology', impactScore: 45, blurb: 'Protected open space; loss resisted unless surplus or replaced.' },
+  'suitable-alternative-green-space': { category: 'ecology', impactScore: 35, blurb: 'SANG — recreational mitigation land for nearby protected habitats.' },
+  'forest-inventory': { category: 'ecology', impactScore: 40, blurb: 'Mapped woodland; tree loss is a material consideration.' },
+  'wildlife': { category: 'ecology', impactScore: 40 },
   'nature-improvement-area': { category: 'ecology', impactScore: 40 },
+  'local-nature-recovery-strategy': { category: 'ecology', impactScore: 32, blurb: 'Within a local nature recovery strategy area — informs biodiversity net gain.' },
 
-  // --- Flooding ---
+  // --- Flooding & water ---
   'flood-risk-zone': { category: 'flood', impactScore: 50, blurb: 'Flood Zone 2/3: sequential and possibly exception tests apply; flood risk assessment required.' },
   'flood-storage-area': { category: 'flood', impactScore: 75, blurb: 'Functional floodplain: most development is inappropriate here.' },
+  'coastal-change-management-area': { category: 'flood', impactScore: 65, blurb: 'Coastal erosion zone; only development that will not be at risk is permitted.' },
+  'main-river': { category: 'flood', impactScore: 55, blurb: 'Environment Agency main river: an environmental permit is needed for work in or near it (typically within 8m).' },
+  'internal-drainage-district': { category: 'flood', impactScore: 25, blurb: 'Within an Internal Drainage Board area; drainage consent may be required.' },
 
   // --- Strong policy / landscape designations ---
   'green-belt': { category: 'landscape', impactScore: 78, blurb: 'Inappropriate development is refused except in very special circumstances.' },
+  'metropolitan-open-land': { category: 'landscape', impactScore: 77, blurb: 'London designation given the same protection as Green Belt.' },
   'national-park': { category: 'landscape', impactScore: 77, blurb: 'Great weight is given to conserving landscape and scenic beauty; major development is restricted.' },
   'area-of-outstanding-natural-beauty': { category: 'landscape', impactScore: 76, blurb: 'National Landscape (AONB): great weight on conserving natural beauty.' },
+  'local-green-space': { category: 'landscape', impactScore: 70, blurb: 'Local Green Space: development ruled out other than in special circumstances (Green Belt policy applies).' },
+  'protected-view': { category: 'landscape', impactScore: 60, blurb: 'Within a protected view/vista; building heights and massing are constrained.' },
   'heritage-coast': { category: 'landscape', impactScore: 60 },
+
+  // --- Hazard, safeguarding & ground conditions ---
+  'control-of-major-accident-hazards-site': { category: 'hazard', impactScore: 60, blurb: 'COMAH consultation zone: the HSE is consulted and development near hazardous installations may be refused.' },
+  'contaminated-land': { category: 'hazard', impactScore: 58, blurb: 'Known or suspected contamination; investigation and remediation likely required.', partialCoverage: true },
+  'safety-hazard-area': { category: 'hazard', impactScore: 55, blurb: 'Notified hazardous-substance consultation zone; sensitive uses may be resisted.' },
+  'hs2-safeguarded-area': { category: 'hazard', impactScore: 55, blurb: 'Safeguarded for HS2; development may be refused or subject to consultation.' },
+  'safeguarded-military-explosives-site': { category: 'hazard', impactScore: 50, blurb: 'Explosives safeguarding zone; MOD is consulted on nearby development.' },
+  'safeguarded-aerodrome': { category: 'hazard', impactScore: 45, blurb: 'Aerodrome safeguarding: height, lighting and bird-strike constraints apply.' },
+  'historic-stone-quarry': { category: 'hazard', impactScore: 38, blurb: 'Former quarry — potential ground stability/mining legacy to investigate.' },
+  'safeguarded-wharf': { category: 'hazard', impactScore: 35, blurb: 'Safeguarded wharf; loss of freight-handling capacity is resisted.' },
 
   // --- Local restrictions ---
   'article-4-direction-area': { category: 'local', impactScore: 55, blurb: 'Permitted development rights are withdrawn here — planning permission needed for works that are normally allowed.', partialCoverage: true },
@@ -82,35 +109,42 @@ export const OVERLAY: Record<string, OverlayEntry> = {
   'air-quality-management-area': { category: 'local', impactScore: 38, blurb: 'Air quality assessment may be needed for development.', partialCoverage: true },
 
   // --- Informational / lower impact ---
-  'agricultural-land-classification': { category: 'info', impactScore: 30, blurb: 'Best and most versatile agricultural land is protected by policy.' },
+  'agricultural-land-classification': { category: 'info', impactScore: 30, blurb: 'Agricultural land grade; the best and most versatile grades (1–3a) are protected by policy.' },
   'infrastructure-project': { category: 'info', impactScore: 35 },
+  'employment-allocation': { category: 'info', impactScore: 25, blurb: 'Allocated for employment use in the development plan.' },
   'central-activities-zone': { category: 'info', impactScore: 25 },
   'design-code-area': { category: 'info', impactScore: 22, blurb: 'A design code applies to development here.', partialCoverage: true },
   'brownfield-land': { category: 'info', impactScore: 20, blurb: 'On the brownfield register — generally an opportunity, not a constraint.', partialCoverage: true },
   'brownfield-site': { category: 'info', impactScore: 20, partialCoverage: true },
+  'development-corporation-boundary': { category: 'info', impactScore: 18, blurb: 'A development corporation is the planning authority here.' },
+  'development-plan-boundary': { category: 'info', impactScore: 15, blurb: 'Covered by a development plan document.' },
+  'development-policy-area': { category: 'info', impactScore: 15, blurb: 'A specific development-plan policy applies to this area.' },
+  'self-and-custom-buildarea': { category: 'info', impactScore: 12, blurb: 'Area relevant to self- and custom-build housing provision.' },
   'educational-establishment': { category: 'info', impactScore: 12 },
+  'development-plan-geography': { category: 'info', impactScore: 10 },
   'transport-access-node': { category: 'info', impactScore: 8 },
-  // Minerals/waste plan areas are strategic policy boundaries, not site-level
-  // constraints for most applications — kept informational, at the bottom.
-  'minerals-plan-boundary': { category: 'info', impactScore: 8, blurb: 'Within a minerals plan area (strategic policy — informational for most development).' },
+  // Minerals safeguarding and waste plan areas are strategic policy layers, not
+  // site-level constraints for most applications — kept low/informational.
+  'mineral-safeguarding-area': { category: 'info', impactScore: 30, blurb: 'Safeguarded mineral resource; a minerals assessment may be needed to show it will not be sterilised.' },
   'waste-plan-boundary': { category: 'info', impactScore: 8, blurb: 'Within a waste plan area (strategic policy — informational for most development).' },
 };
 
 /**
- * Nationwide "boundary" layers that intersect every English point and carry no
- * planning signal (e.g. the England outline). Removed from the registry so they
- * are never queried or shown. Confirm exact slugs against the live console
- * `unmapped` warning on first run (they otherwise surface in "Other
- * designations").
+ * Geography datasets that are noise for a constraint check: the nationwide
+ * England outline (`border`, which intersects every English point) and the
+ * addressing layers (which return nearby addresses, not designations). Removed
+ * from the registry so they are never queried or shown. Slugs reconciled
+ * 2026-07-07 against the MHCLG dataset catalogue (digital-land/specification).
  */
-export const EXCLUDED_SLUGS = new Set<string>(['boundary']);
+export const EXCLUDED_SLUGS = new Set<string>(['border', 'address', 'postcode', 'street', 'uprn']);
 
 export const CATEGORY_LABELS: Record<Category, string> = {
   administrative: 'Administrative',
   heritage: 'Heritage',
   ecology: 'Ecology & nature',
-  flood: 'Flood risk',
+  flood: 'Flood & water',
   landscape: 'Landscape & policy',
+  hazard: 'Hazard & safeguarding',
   local: 'Local restrictions',
   info: 'Informational',
   other: 'Other designations',
@@ -183,7 +217,8 @@ const FLOOD_LEVEL_SCORES: Record<string, number> = { '3': 80, '2': 50, '1': 10 }
  * Agricultural Land Classification only matters when the land is farmed:
  * "urban"/"non-agricultural" is noise; the best-and-most-versatile grades
  * (1, 2, 3a) carry real policy weight. Keys are lower-cased grade strings with
- * the "grade " prefix stripped. Field name to confirm live (ISSUES-1).
+ * the "grade " prefix stripped. Field `agricultural-land-classification-grade`
+ * confirmed against the MHCLG catalogue (2026-07-07).
  */
 const ALC_GRADE_SCORES: Record<string, number> = {
   '1': 50,
@@ -258,8 +293,9 @@ export function scoreEntity(entity: PlanningEntity, registry: RegistryEntry): Sc
 
 /**
  * What an Article 4 direction actually removes — the useful bit for a planner.
- * The platform records this under one of a few field names depending on the
- * submitting authority; take the first present (confirm live, ISSUES-1).
+ * `article-4-direction-area` carries `permitted-development-rights` plus free-text
+ * `description`/`notes` (confirmed against the MHCLG catalogue, 2026-07-07); the
+ * prose fields are preferred when populated, falling back to the rights list.
  */
 export function article4Detail(entity: PlanningEntity): string | undefined {
   for (const field of ['description', 'notes', 'permitted-development-rights', 'permitted-development-right']) {

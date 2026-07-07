@@ -42,6 +42,7 @@ export type Category =
   | 'ecology'
   | 'flood'
   | 'landscape'
+  | 'hazard'
   | 'local'
   | 'info'
   | 'other';
