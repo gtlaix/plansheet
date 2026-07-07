@@ -21,8 +21,8 @@ Ideas beyond the six specs. Each is a candidate future spec; sizes are order-of-
    to stay polite to the API.
 6. **% coverage in severity ordering refinements (S)** — after SPEC-02, tune tiebreakers with
    consultant feedback (e.g. Flood Zone 3 at 90% coverage vs Grade II at point contact).
-7. **Entity detail drawer (S/M)** — click a hit to see all raw fields, organisation,
-   entry-date/provenance, dataset description, without leaving the app.
+7. **Entity detail drawer (S/M)** — ✅ **DONE.** Each hit has an "All fields" disclosure showing
+   every raw entity field (organisation, entry-date, grade, reference…) without leaving the app.
 
 ## Product/platform
 
@@ -30,12 +30,12 @@ Ideas beyond the six specs. Each is a candidate future spec; sizes are order-of-
    (`leaflet-image` or `html-to-image`) and include in print/PDF; the "all layers active"
    visual record. Watch OS/OSM tile licensing for reproduction in documents — OS Maps API terms
    permit this with attribution.
-9. **EPSG:27700 support (S)** — accept easting/northing input and reproject via `proj4`
-   (single well-known transform); consultants live in British National Grid.
+9. **EPSG:27700 support (S)** — ✅ **DONE.** A British National Grid easting/northing search row
+   reprojects via `proj4` (lazy-loaded); verified against the SW1A 1AA control point.
 10. **Dataset freshness indicator (S)** — `/dataset.json` includes entry counts and dates;
     show "data as of…" per dataset in the checked list and exports.
-11. **Config-driven basemaps (S)** — ISSUES-5; OS Maps API basemap option using the stored OS
-    key, with print-appropriate greyscale style.
+11. **Config-driven basemaps (S)** — ◑ **PARTLY DONE.** The tile source is now a single `BASEMAP`
+    config (ISSUES-5); wiring an actual OS Maps / MapTiler provider + key is still a user decision.
 12. **Hosted MCP / HTTP API (L)** — SPEC-05 is stdio-local; a small hosted wrapper (Cloudflare
     Workers would do — the core is fetch-based and stateless) lets tools like custom GPTs and
     server-side agents call it. Needs rate limiting + caching to protect the upstream API.
@@ -44,7 +44,8 @@ Ideas beyond the six specs. Each is a candidate future spec; sizes are order-of-
 
 ## Engineering health
 
-14. **E2E in CI** (ISSUES-12) and visual regression snapshots of the report.
+14. **E2E in CI** — ◑ **PARTLY DONE.** Hermetic Playwright e2e now gates the deploy (ISSUES-12);
+    visual-regression snapshots of the report are still to do.
 15. **Error telemetry (S)** — optional, privacy-respecting (self-hosted Plausible/Sentry) to
     learn which datasets fail in the wild; off by default, document clearly.
 16. **Monorepo hygiene after SPEC-05 (S)** — shared eslint/prettier config, `npm run check`
