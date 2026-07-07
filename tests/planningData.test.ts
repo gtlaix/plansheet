@@ -1,0 +1,128 @@
+import { describe, expect, it, vi } from 'vitest';
+import {
+  chunk,
+  DATASETS_PER_REQUEST,
+  entityPageUrl,
+  fetchAllDatasets,
+  queryEntities,
+  queryGeojson,
+} from '../src/api/planningData';
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  } as unknown as Response;
+}
+
+const ENTITY_FIXTURE = {
+  count: 2,
+  entities: [
+    {
+      entity: 44009002,
+      name: 'Whitehall Conservation Area',
+      dataset: 'conservation-area',
+      reference: 'CA-123',
+      typology: 'geography',
+      'start-date': '1969-01-01',
+      'end-date': '',
+      'entry-date': '2023-06-01',
+    },
+    {
+      entity: 31000001,
+      name: 'Buckingham Palace',
+      dataset: 'listed-building',
+      reference: '1234567',
+      'listed-building-grade': 'I',
+      typology: 'geography',
+      'start-date': '1970-02-05',
+      'end-date': '',
+      'entry-date': '2023-06-01',
+    },
+  ],
+};
+
+describe('chunk', () => {
+  it('splits into batches of the requested size', () => {
+    expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
+    expect(chunk([], 2)).toEqual([]);
+  });
+});
+
+describe('fetchAllDatasets', () => {
+  it('returns the dataset list from /dataset.json', async () => {
+    const fetchFn = vi.fn(async () =>
+      jsonResponse({ datasets: [{ dataset: 'green-belt', name: 'Green belt', typology: 'geography' }] }),
+    );
+    const datasets = await fetchAllDatasets(fetchFn as unknown as typeof fetch);
+    expect(fetchFn).toHaveBeenCalledWith('https://www.planning.data.gov.uk/dataset.json');
+    expect(datasets).toHaveLength(1);
+    expect(datasets[0].dataset).toBe('green-belt');
+  });
+
+  it('returns an empty list (registry fallback) when the API is unreachable', async () => {
+    const fetchFn = vi.fn(async () => {
+      throw new Error('network down');
+    });
+    expect(await fetchAllDatasets(fetchFn as unknown as typeof fetch)).toEqual([]);
+  });
+});
+
+describe('queryEntities', () => {
+  it('batches datasets, includes coordinates, and merges entities', async () => {
+    const urls: string[] = [];
+    const fetchFn = vi.fn(async (url: string) => {
+      urls.push(url);
+      return jsonResponse(ENTITY_FIXTURE);
+    });
+
+    const slugs = Array.from({ length: DATASETS_PER_REQUEST + 3 }, (_, i) => `dataset-${i}`);
+    const result = await queryEntities(51.5014, -0.1419, slugs, fetchFn as unknown as typeof fetch);
+
+    expect(fetchFn).toHaveBeenCalledTimes(2); // 15 slugs → 2 batches
+    expect(urls[0]).toContain('latitude=51.5014');
+    expect(urls[0]).toContain('longitude=-0.1419');
+    expect(urls[0]).toContain('dataset=dataset-0');
+    expect(urls[1]).toContain(`dataset=dataset-${DATASETS_PER_REQUEST}`);
+    expect(result.entities).toHaveLength(4); // fixture returned for both batches
+    expect(result.failedDatasets).toEqual([]);
+  });
+
+  it('retries a failed batch once, then reports its datasets as failed', async () => {
+    let calls = 0;
+    const fetchFn = vi.fn(async () => {
+      calls++;
+      return jsonResponse({ message: 'oops' }, 500);
+    });
+    const result = await queryEntities(51.5, -0.1, ['a', 'b'], fetchFn as unknown as typeof fetch);
+    expect(calls).toBe(2); // initial + one retry
+    expect(result.entities).toEqual([]);
+    expect(result.failedDatasets).toEqual(['a', 'b']);
+  });
+});
+
+describe('queryGeojson', () => {
+  it('returns a merged FeatureCollection', async () => {
+    const fetchFn = vi.fn(async () =>
+      jsonResponse({
+        type: 'FeatureCollection',
+        features: [{ type: 'Feature', properties: { dataset: 'green-belt' }, geometry: { type: 'Point', coordinates: [0, 0] } }],
+      }),
+    );
+    const fc = await queryGeojson(51.5, -0.1, ['green-belt'], fetchFn as unknown as typeof fetch);
+    expect(fc?.features).toHaveLength(1);
+  });
+
+  it('returns null for no datasets or on failure', async () => {
+    expect(await queryGeojson(51.5, -0.1, [], vi.fn() as unknown as typeof fetch)).toBeNull();
+    const failing = vi.fn(async () => jsonResponse({}, 500));
+    expect(await queryGeojson(51.5, -0.1, ['x'], failing as unknown as typeof fetch)).toBeNull();
+  });
+});
+
+describe('entityPageUrl', () => {
+  it('links to the entity page', () => {
+    expect(entityPageUrl(42)).toBe('https://www.planning.data.gov.uk/entity/42');
+  });
+});

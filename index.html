@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Plansheet — planning constraints for any site in England</title>
+    <meta
+      name="description"
+      content="Check every planning constraint and designation affecting a site in England: listed buildings, conservation areas, green belt, flood risk zones, article 4 directions and more. Powered by the Planning Data API."
+    />
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Plansheet</h1>
+      <p class="tagline">Every planning constraint on a site, in one sheet — England</p>
+    </header>
+
+    <main class="app-main">
+      <section class="panel" id="panel">
+        <div id="search-root"></div>
+        <div id="report-root" aria-live="polite"></div>
+      </section>
+      <section class="map-wrap">
+        <div id="map" role="application" aria-label="Map of England. Click to check a location."></div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>
+        Data from the
+        <a href="https://www.planning.data.gov.uk" target="_blank" rel="noopener">Planning Data platform</a>
+        (MHCLG), licensed under the
+        <a
+          href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/"
+          target="_blank"
+          rel="noopener"
+          >Open Government Licence v3.0</a
+        >. Postcode lookups by <a href="https://postcodes.io" target="_blank" rel="noopener">postcodes.io</a>.
+        Map &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
+        contributors. Not a substitute for a formal planning search.
+      </p>
+    </footer>
+  </body>
+</html>
