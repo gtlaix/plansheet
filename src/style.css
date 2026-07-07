@@ -389,6 +389,35 @@ body {
   color: var(--ink-soft);
 }
 
+.hit-more {
+  margin-top: 0.4rem;
+}
+
+.hit-more summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.hit-fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.7rem;
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+}
+
+.hit-fields dt {
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.hit-fields dd {
+  margin: 0;
+  word-break: break-word;
+}
+
 .report-actions {
   display: flex;
   gap: 0.5rem;

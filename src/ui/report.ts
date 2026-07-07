@@ -77,6 +77,17 @@ export function renderError(root: HTMLElement, message: string): void {
   root.replaceChildren(el('div', { class: 'report' }, el('p', { class: 'search-error' }, message)));
 }
 
+// Fields shown elsewhere on the card, or not useful raw, are hidden from the
+// detail disclosure; everything else primitive and non-empty is shown as-is.
+const HIDDEN_DETAIL_FIELDS = new Set(['name', 'entity', 'typology', 'point', 'geometry', 'prefix']);
+
+/** Ordered [label, value] rows of the raw entity fields, for the detail drawer. */
+export function entityDetailRows(entity: Record<string, unknown>): [string, string][] {
+  return Object.entries(entity)
+    .filter(([k, v]) => !HIDDEN_DETAIL_FIELDS.has(k) && v != null && typeof v !== 'object' && String(v).trim() !== '')
+    .map(([k, v]) => [k.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase()), String(v)]);
+}
+
 function hitCard(hit: ScoredHit): HTMLElement {
   const tier = impactTier(hit.score);
   const name = String(hit.entity.name ?? '').trim();
@@ -103,6 +114,25 @@ function hitCard(hit: ScoredHit): HTMLElement {
     ...(hit.registry.blurb ? [el('p', { class: 'hit-blurb' }, hit.registry.blurb)] : []),
     ...(hit.detail ? [el('p', { class: 'hit-detail' }, el('strong', {}, 'Removes: '), hit.detail)] : []),
     ...(meta.length > 0 ? [el('p', { class: 'hit-meta' }, meta.join(' · '))] : []),
+    hitDetails(hit),
+  );
+}
+
+/** Collapsible drawer of every raw entity field, without leaving the app. */
+function hitDetails(hit: ScoredHit): HTMLElement {
+  const rows = entityDetailRows(hit.entity);
+  const dl = el('dl', { class: 'hit-fields' });
+  for (const [label, value] of rows) dl.append(el('dt', {}, label), el('dd', {}, value));
+  return el(
+    'details',
+    { class: 'hit-more' },
+    el('summary', {}, 'All fields'),
+    dl,
+    el(
+      'p',
+      { class: 'hit-meta' },
+      el('a', { href: entityPageUrl(hit.entity.entity), target: '_blank', rel: 'noopener' }, 'View on planning.data.gov.uk ↗'),
+    ),
   );
 }
 

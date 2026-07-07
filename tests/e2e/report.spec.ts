@@ -121,6 +121,10 @@ test('a postcode generates a ranked plan sheet, admin first', async ({ page }) =
   await expect(page.locator('.report[role="region"]')).toHaveCount(1);
   await expect(page.locator('.hit-list')).toHaveAttribute('aria-label', /most significant first/);
   await expect(page.locator('.hit-list .badge').first()).toHaveAttribute('aria-label', /Impact rating/);
+
+  // entity detail drawer expands to show raw fields
+  await page.locator('.hit-list .hit-more summary').first().click();
+  await expect(page.locator('.hit-list .hit-fields').first()).toContainText('Dataset');
 });
 
 test('the map is keyboard-operable: Enter checks the centre', async ({ page }) => {

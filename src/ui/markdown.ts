@@ -55,6 +55,9 @@ export function reportToMarkdown(data: ReportData): string {
       if (hit.detail) lines.push(`- **Removes:** ${hit.detail}`);
       if (hit.entity.reference) lines.push(`- **Reference:** ${hit.entity.reference}`);
       if (hit.entity['start-date']) lines.push(`- **Since:** ${hit.entity['start-date']}`);
+      const org = hit.entity['organisation-entity'];
+      if (typeof org === 'string' && org.trim() !== '') lines.push(`- **Organisation:** ${org}`);
+      if (hit.entity['entry-date']) lines.push(`- **Data updated:** ${hit.entity['entry-date']}`);
       lines.push(`- **Source:** ${entityPageUrl(hit.entity.entity)}`, '');
     }
   } else {
