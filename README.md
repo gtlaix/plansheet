@@ -27,6 +27,12 @@ category, impact score and a plain-English explanation for known datasets; anyth
 still queried and reported (at a default mid impact) and logged to the console so the overlay can
 be extended.
 
+## Roadmap
+
+The v2 scope — site boundary drawing, layer visualisation, proximity analysis, structured
+report export for AI appraisal pipelines, an MCP server, and a data-gaps register — is fully
+specified in [`docs/specs/`](docs/specs/README.md), alongside known issues and a backlog.
+
 ## Running locally
 
 ```bash
