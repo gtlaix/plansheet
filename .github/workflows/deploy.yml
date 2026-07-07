@@ -25,7 +25,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - run: npx playwright install --with-deps chromium
+      # ubuntu-latest already ships Chromium's shared libraries, so install the
+      # browser only — `--with-deps` runs apt and breaks when the runner's
+      # pre-baked Microsoft apt repo serves a bad signature (flaky, unrelated).
+      - run: npx playwright install chromium
       - run: npm run test:e2e
       - run: npm run build
       - uses: actions/configure-pages@v5
