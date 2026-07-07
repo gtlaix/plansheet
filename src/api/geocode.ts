@@ -12,7 +12,12 @@ interface PostcodesResult {
   latitude: number | null;
   longitude: number | null;
   admin_district?: string;
+  /** Metres from the query point; present on reverse (lon/lat) lookups. */
+  distance?: number;
 }
+
+/** Beyond this, the "nearest postcode" is misleading in rural areas (ISSUES-6). */
+const REVERSE_MAX_DISTANCE_M = 200;
 
 /** Forward-geocode a UK postcode via postcodes.io. Throws GeocodeError with a user-facing message. */
 export async function geocodePostcode(
@@ -42,7 +47,10 @@ export async function reverseGeocode(
     const res = await fetchFn(`${POSTCODES_BASE}/postcodes?lon=${lng}&lat=${lat}&limit=1`);
     if (!res.ok) return null;
     const body = (await res.json()) as { result: PostcodesResult[] | null };
-    return body.result?.[0]?.postcode ?? null;
+    const nearest = body.result?.[0];
+    if (!nearest) return null;
+    if (typeof nearest.distance === 'number' && nearest.distance > REVERSE_MAX_DISTANCE_M) return null;
+    return nearest.postcode;
   } catch {
     return null;
   }

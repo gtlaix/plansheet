@@ -39,6 +39,13 @@ describe('reverseGeocode', () => {
     expect(await reverseGeocode(51.5, -0.14, fetchFn as unknown as typeof fetch)).toBe('SW1A 1AA');
   });
 
+  it('suppresses postcodes further than 200 m from the point', async () => {
+    const far = vi.fn(async () => jsonResponse({ result: [{ postcode: 'YO62 4LB', distance: 1450.7 }] }));
+    expect(await reverseGeocode(54.25, -0.95, far as unknown as typeof fetch)).toBeNull();
+    const near = vi.fn(async () => jsonResponse({ result: [{ postcode: 'SW1A 1AA', distance: 42.1 }] }));
+    expect(await reverseGeocode(51.5, -0.14, near as unknown as typeof fetch)).toBe('SW1A 1AA');
+  });
+
   it('is best-effort: null on failure or no result', async () => {
     const failing = vi.fn(async () => {
       throw new Error('down');

@@ -15,6 +15,12 @@ interface OverlayEntry {
   impactScore: number;
   blurb?: string;
   label?: string;
+  /**
+   * LPA-sourced dataset with incomplete national coverage (only councils on
+   * the Open Digital Planning programme have submitted). A zero-hit on these
+   * means "no data", never "no constraint" — the report must say so.
+   */
+  partialCoverage?: boolean;
 }
 
 export const DEFAULT_IMPACT = 40;
@@ -39,11 +45,11 @@ export const OVERLAY: Record<string, OverlayEntry> = {
   'building-preservation-notice': { category: 'heritage', impactScore: 88, blurb: 'Temporary listed-building protection is in force.' },
   'world-heritage-site-buffer-zone': { category: 'heritage', impactScore: 72, blurb: 'Development must protect the setting of a World Heritage Site.' },
   'heritage-at-risk': { category: 'heritage', impactScore: 70 },
-  'conservation-area': { category: 'heritage', impactScore: 68, blurb: 'Extra planning controls protect the character of the area; some permitted development rights are restricted.' },
+  'conservation-area': { category: 'heritage', impactScore: 68, blurb: 'Extra planning controls protect the character of the area; some permitted development rights are restricted.', partialCoverage: true },
   'park-and-garden': { category: 'heritage', impactScore: 66, blurb: 'Registered historic park or garden; harm carries significant planning weight.' },
   battlefield: { category: 'heritage', impactScore: 65 },
-  'archaeological-priority-area': { category: 'heritage', impactScore: 62, blurb: 'Archaeological assessment likely required before development.' },
-  'locally-listed-building': { category: 'heritage', impactScore: 45, blurb: 'On the local heritage list; a material consideration in decisions.' },
+  'archaeological-priority-area': { category: 'heritage', impactScore: 62, blurb: 'Archaeological assessment likely required before development.', partialCoverage: true },
+  'locally-listed-building': { category: 'heritage', impactScore: 45, blurb: 'On the local heritage list; a material consideration in decisions.', partialCoverage: true },
   'certificate-of-immunity': { category: 'info', impactScore: 15, blurb: 'Certified immune from listing for five years — reduces heritage risk.' },
 
   // --- Statutory ecology ---
@@ -67,20 +73,20 @@ export const OVERLAY: Record<string, OverlayEntry> = {
   'heritage-coast': { category: 'landscape', impactScore: 60 },
 
   // --- Local restrictions ---
-  'article-4-direction-area': { category: 'local', impactScore: 55, blurb: 'Permitted development rights are withdrawn here — planning permission needed for works that are normally allowed.' },
-  'tree-preservation-zone': { category: 'local', impactScore: 50, blurb: 'Tree Preservation Order area: consent needed to prune or fell protected trees.' },
-  tree: { category: 'local', impactScore: 48, blurb: 'Individually protected tree: consent needed to prune or fell.' },
-  'asset-of-community-value': { category: 'local', impactScore: 42, blurb: 'Community right to bid may delay disposal; a material planning consideration.' },
-  'air-quality-management-area': { category: 'local', impactScore: 38, blurb: 'Air quality assessment may be needed for development.' },
+  'article-4-direction-area': { category: 'local', impactScore: 55, blurb: 'Permitted development rights are withdrawn here — planning permission needed for works that are normally allowed.', partialCoverage: true },
+  'tree-preservation-zone': { category: 'local', impactScore: 50, blurb: 'Tree Preservation Order area: consent needed to prune or fell protected trees.', partialCoverage: true },
+  tree: { category: 'local', impactScore: 48, blurb: 'Individually protected tree: consent needed to prune or fell.', partialCoverage: true },
+  'asset-of-community-value': { category: 'local', impactScore: 42, blurb: 'Community right to bid may delay disposal; a material planning consideration.', partialCoverage: true },
+  'air-quality-management-area': { category: 'local', impactScore: 38, blurb: 'Air quality assessment may be needed for development.', partialCoverage: true },
 
   // --- Informational / lower impact ---
   'agricultural-land-classification': { category: 'info', impactScore: 30, blurb: 'Best and most versatile agricultural land is protected by policy.' },
   'infrastructure-project': { category: 'info', impactScore: 35 },
   'central-activities-zone': { category: 'info', impactScore: 25 },
-  'design-code-area': { category: 'info', impactScore: 22, blurb: 'A design code applies to development here.' },
-  'brownfield-land': { category: 'info', impactScore: 20, blurb: 'On the brownfield register — generally an opportunity, not a constraint.' },
-  'brownfield-site': { category: 'info', impactScore: 20 },
-  'local-plan-boundary': { category: 'info', impactScore: 10 },
+  'design-code-area': { category: 'info', impactScore: 22, blurb: 'A design code applies to development here.', partialCoverage: true },
+  'brownfield-land': { category: 'info', impactScore: 20, blurb: 'On the brownfield register — generally an opportunity, not a constraint.', partialCoverage: true },
+  'brownfield-site': { category: 'info', impactScore: 20, partialCoverage: true },
+  'local-plan-boundary': { category: 'info', impactScore: 10, partialCoverage: true },
   'educational-establishment': { category: 'info', impactScore: 12 },
   'transport-access-node': { category: 'info', impactScore: 8 },
 };
@@ -116,6 +122,7 @@ export function buildRegistry(apiDatasets: ApiDataset[]): RegistryEntry[] {
       impactScore: overlay?.impactScore ?? DEFAULT_IMPACT,
       blurb: overlay?.blurb,
       unmapped: !overlay,
+      partialCoverage: overlay?.partialCoverage,
     });
   }
 
@@ -129,6 +136,7 @@ export function buildRegistry(apiDatasets: ApiDataset[]): RegistryEntry[] {
         category: overlay.category,
         impactScore: overlay.impactScore,
         blurb: overlay.blurb,
+        partialCoverage: overlay.partialCoverage,
       });
     }
   }
@@ -205,6 +213,25 @@ export function sortHits(hits: ScoredHit[]): ScoredHit[] {
     if (byLabel !== 0) return byLabel;
     return String(a.entity.name ?? '').localeCompare(String(b.entity.name ?? ''));
   });
+}
+
+/**
+ * Split the datasets that returned no entities into genuinely clear
+ * (nationally complete data) vs "no data found" (partial-coverage datasets,
+ * where absence of a hit must not be read as absence of a constraint).
+ */
+export function classifyChecked(
+  checked: RegistryEntry[],
+  hits: ScoredHit[],
+  failedDatasets: string[],
+): { clear: RegistryEntry[]; partialNoData: RegistryEntry[] } {
+  const hitSlugs = new Set(hits.map((h) => h.registry.slug));
+  const failed = new Set(failedDatasets);
+  const noHit = checked.filter((c) => !hitSlugs.has(c.slug) && !failed.has(c.slug));
+  return {
+    clear: noHit.filter((c) => !c.partialCoverage),
+    partialNoData: noHit.filter((c) => c.partialCoverage),
+  };
 }
 
 export type ImpactTier = 'very-high' | 'high' | 'medium' | 'low' | 'informational';

@@ -1,5 +1,6 @@
 import { entityPageUrl } from '../api/planningData';
-import { CATEGORY_LABELS, impactTier, TIER_LABELS } from '../datasets';
+import { CATEGORY_LABELS, classifyChecked, impactTier, TIER_LABELS } from '../datasets';
+import { DATA_GAPS } from '../dataGaps';
 import type { LocationSelection, RegistryEntry, ScoredHit } from '../types';
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -102,16 +103,19 @@ export function renderReport(root: HTMLElement, data: ReportData): void {
   if (adminHits.length > 0) {
     const dl = el('dl', { class: 'admin-list' });
     for (const hit of adminHits) {
+      const name = String(hit.entity.name ?? '').trim();
+      const text =
+        name !== ''
+          ? name
+          : hit.registry.slug === 'title-boundary'
+            ? `Registered title (INSPIRE ${hit.entity.reference || hit.entity.entity})`
+            : String(hit.entity.reference || hit.entity.entity);
       dl.append(
         el('dt', {}, hit.registry.label),
         el(
           'dd',
           {},
-          el(
-            'a',
-            { href: entityPageUrl(hit.entity.entity), target: '_blank', rel: 'noopener' },
-            String(hit.entity.name ?? hit.entity.reference ?? hit.entity.entity),
-          ),
+          el('a', { href: entityPageUrl(hit.entity.entity), target: '_blank', rel: 'noopener' }, text),
         ),
       );
     }
@@ -161,14 +165,51 @@ export function renderReport(root: HTMLElement, data: ReportData): void {
   }
 
   // --- 3. Affirmative record of everything checked with no hit ---
-  const hitSlugs = new Set(data.hits.map((h) => h.registry.slug));
-  const clear = data.checked.filter((c) => !hitSlugs.has(c.slug) && !data.failedDatasets.includes(c.slug));
+  // Partial-coverage datasets are LPA-sourced and nationally incomplete: a
+  // zero-hit there is "no data found", never "no constraint" (ISSUES-3).
+  const { clear, partialNoData } = classifyChecked(data.checked, data.hits, data.failedDatasets);
+
+  if (partialNoData.length > 0) {
+    report.append(
+      el(
+        'section',
+        { class: 'report-section' },
+        el('h3', {}, 'No data found — coverage incomplete'),
+        el(
+          'p',
+          { class: 'hint' },
+          'These datasets are supplied council-by-council and do not yet cover all of England. No data here does NOT mean no constraint — verify with the local planning authority.',
+        ),
+        el('ul', { class: 'partial-list' }, ...partialNoData.map((c) => el('li', {}, c.label))),
+      ),
+    );
+  }
+
   const details = el('details', { class: 'checked-list' });
   details.append(
     el('summary', {}, `Checked with no constraint found (${clear.length} datasets)`),
     el('ul', {}, ...clear.map((c) => el('li', {}, c.label))),
   );
   report.append(el('section', { class: 'report-section' }, details));
+
+  // --- 4. What this check cannot cover at all ---
+  const gaps = el('details', { class: 'checked-list gaps-list' });
+  gaps.append(
+    el('summary', {}, `Not covered by this check (${DATA_GAPS.length} topics)`),
+    el(
+      'p',
+      { class: 'hint' },
+      'The Planning Data platform does not hold these constraint classes. A full appraisal must check them separately:',
+    ),
+    el(
+      'ul',
+      {},
+      ...DATA_GAPS.map((g) =>
+        el('li', {}, el('strong', {}, `${g.topic}: `), `${g.why} `, el('em', {}, `Check: ${g.whereToCheck}`)),
+      ),
+    ),
+  );
+  report.append(el('section', { class: 'report-section' }, gaps));
 
   root.replaceChildren(report);
 }

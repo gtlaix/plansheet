@@ -56,6 +56,8 @@ export interface RegistryEntry {
   blurb?: string;
   /** True when the slug was not in the curated overlay (auto-included from the API). */
   unmapped?: boolean;
+  /** LPA-sourced dataset with incomplete national coverage: zero hits ≠ clear. */
+  partialCoverage?: boolean;
 }
 
 export interface LocationSelection {

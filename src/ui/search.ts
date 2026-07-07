@@ -124,23 +124,43 @@ export function createSearchPanel(
     });
   });
 
-  // --- Tabs ---
+  // --- Tabs (WAI-ARIA tabs pattern: roving tabindex + arrow keys) ---
   const panels: Record<Tab, HTMLFormElement> = { postcode: postcodeForm, coords: coordsForm, uprn: uprnForm };
   const tabButtons: Record<Tab, HTMLButtonElement> = {
     postcode: el('button', { type: 'button', class: 'tab' }, 'Postcode'),
     coords: el('button', { type: 'button', class: 'tab' }, 'Coordinates'),
     uprn: el('button', { type: 'button', class: 'tab' }, 'UPRN'),
   };
-
-  function activate(tab: Tab) {
-    clearError();
-    for (const t of Object.keys(panels) as Tab[]) {
-      panels[t].hidden = t !== tab;
-      tabButtons[t].classList.toggle('tab-active', t === tab);
-    }
+  const tabOrder = Object.keys(tabButtons) as Tab[];
+  for (const t of tabOrder) {
+    tabButtons[t].setAttribute('role', 'tab');
+    tabButtons[t].id = `tab-${t}`;
+    tabButtons[t].setAttribute('aria-controls', `panel-${t}`);
+    panels[t].setAttribute('role', 'tabpanel');
+    panels[t].id = `panel-${t}`;
+    panels[t].setAttribute('aria-labelledby', `tab-${t}`);
   }
-  for (const t of Object.keys(tabButtons) as Tab[]) {
+
+  function activate(tab: Tab, focus = false) {
+    clearError();
+    for (const t of tabOrder) {
+      const selected = t === tab;
+      panels[t].hidden = !selected;
+      tabButtons[t].classList.toggle('tab-active', selected);
+      tabButtons[t].setAttribute('aria-selected', String(selected));
+      tabButtons[t].tabIndex = selected ? 0 : -1;
+    }
+    if (focus) tabButtons[tab].focus();
+  }
+  for (const t of tabOrder) {
     tabButtons[t].addEventListener('click', () => activate(t));
+    tabButtons[t].addEventListener('keydown', (e) => {
+      const delta = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (delta === 0) return;
+      e.preventDefault();
+      const next = tabOrder[(tabOrder.indexOf(t) + delta + tabOrder.length) % tabOrder.length];
+      activate(next, true);
+    });
   }
 
   root.append(

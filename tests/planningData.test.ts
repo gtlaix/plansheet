@@ -89,6 +89,26 @@ describe('queryEntities', () => {
     expect(result.failedDatasets).toEqual([]);
   });
 
+  it('follows pagination links and merges all pages', async () => {
+    const urls: string[] = [];
+    const fetchFn = vi.fn(async (url: string) => {
+      urls.push(url);
+      if (url.includes('offset=500')) {
+        return jsonResponse({ count: 501, entities: [ENTITY_FIXTURE.entities[1]], links: {} });
+      }
+      return jsonResponse({
+        count: 501,
+        entities: [ENTITY_FIXTURE.entities[0]],
+        links: { next: 'https://www.planning.data.gov.uk/entity.json?offset=500' },
+      });
+    });
+    const result = await queryEntities(51.5, -0.1, ['conservation-area'], fetchFn as unknown as typeof fetch);
+    expect(urls).toHaveLength(2);
+    expect(urls[1]).toContain('offset=500');
+    expect(result.entities).toHaveLength(2);
+    expect(result.failedDatasets).toEqual([]);
+  });
+
   it('retries a failed batch once, then reports its datasets as failed', async () => {
     let calls = 0;
     const fetchFn = vi.fn(async () => {

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { buildRegistry, DEFAULT_IMPACT, impactTier, OVERLAY, scoreEntity, sortHits } from '../src/datasets';
+import {
+  buildRegistry,
+  classifyChecked,
+  DEFAULT_IMPACT,
+  impactTier,
+  OVERLAY,
+  scoreEntity,
+  sortHits,
+} from '../src/datasets';
+import { DATA_GAPS } from '../src/dataGaps';
 import type { ApiDataset, PlanningEntity, RegistryEntry, ScoredHit } from '../src/types';
 
 function entity(dataset: string, extra: Record<string, unknown> = {}): PlanningEntity {
@@ -108,6 +117,37 @@ describe('sortHits ordering', () => {
     const ca = scoreEntity(entity('conservation-area'), reg('conservation-area'));
     expect(sortHits([ca, z3]).map((h) => h.registry.slug)[0]).toBe('flood-risk-zone');
     expect(sortHits([ca, z2]).map((h) => h.registry.slug)[0]).toBe('conservation-area');
+  });
+});
+
+describe('classifyChecked (ISSUES-3: zero-hit ≠ clear for partial datasets)', () => {
+  it('splits no-hit datasets into clear vs partial-coverage, excluding hits and failures', () => {
+    const registry = buildRegistry([]);
+    const hits = [scoreEntity(entity('green-belt'), reg('green-belt'))];
+    const { clear, partialNoData } = classifyChecked(registry, hits, ['scheduled-monument']);
+
+    const clearSlugs = clear.map((c) => c.slug);
+    const partialSlugs = partialNoData.map((c) => c.slug);
+
+    // article 4 / TPO are LPA-sourced: absence of data must not read as clearance
+    expect(partialSlugs).toContain('article-4-direction-area');
+    expect(partialSlugs).toContain('tree-preservation-zone');
+    // national datasets with no hit are genuinely clear
+    expect(clearSlugs).toContain('site-of-special-scientific-interest');
+    // hits and failed datasets appear in neither list
+    expect(clearSlugs).not.toContain('green-belt');
+    expect([...clearSlugs, ...partialSlugs]).not.toContain('scheduled-monument');
+  });
+});
+
+describe('data gaps register', () => {
+  it('has substantive entries and no id collides with an overlay slug', () => {
+    expect(DATA_GAPS.length).toBeGreaterThanOrEqual(20);
+    const overlaySlugs = new Set(Object.keys(OVERLAY));
+    for (const gap of DATA_GAPS) {
+      expect(overlaySlugs.has(gap.id)).toBe(false);
+      expect(gap.whereToCheck.length).toBeGreaterThan(0);
+    }
   });
 });
 
