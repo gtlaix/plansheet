@@ -112,6 +112,7 @@ async function runCheck(input: CheckInput): Promise<void> {
       },
       { onUseAsBoundary: useTitleBoundary },
     );
+    search.collapse(label); // fold the search panel so results have room
 
     // Overlay geometries for constraint hits only (admin boundaries are noise).
     const overlaySlugs = [
@@ -159,8 +160,21 @@ async function useTitleBoundary(entityId: number): Promise<void> {
 }
 
 const runBoundary = (geom: AreaGeometry, label?: string) => void runCheck({ kind: 'polygon', geom, label });
-const map = createMap(mapEl, (lat, lng) => void runCheck({ kind: 'point', lat, lng }), (geom) => runBoundary(geom));
-const search = createSearchPanel(searchRoot, (loc) => void runCheck({ kind: 'point', ...loc }), runBoundary);
+// Indirection so the map and panel can each reference the other despite creation order.
+let onDrawChange: (drawing: boolean) => void = () => {};
+const map = createMap(
+  mapEl,
+  (lat, lng) => void runCheck({ kind: 'point', lat, lng }),
+  (geom) => runBoundary(geom),
+  (drawing) => onDrawChange(drawing),
+);
+const search = createSearchPanel(
+  searchRoot,
+  (loc) => void runCheck({ kind: 'point', ...loc }),
+  runBoundary,
+  () => map.toggleDraw(),
+);
+onDrawChange = (drawing) => search.setDrawing(drawing);
 renderIdle(reportRoot);
 
 // Grey out everything outside England using the ONS `border` layer (best-effort).

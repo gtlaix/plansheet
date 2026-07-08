@@ -10,6 +10,7 @@
   --header-ink: #ffffff;
   --accent: #1c5b8e;
   --accent-hover: #174a74;
+  --link: #1257a3;
   --tier-very-high: #a4262c;
   --tier-high: #c2510e;
   --tier-medium: #996f00;
@@ -29,6 +30,7 @@
   --header-ink: #f2f6fb;
   --accent: #4a9fd8;
   --accent-hover: #64b0e4;
+  --link: #8fccf7;
   --tier-very-high: #e06a6f;
   --tier-high: #e2894a;
   --tier-medium: #cba94a;
@@ -50,6 +52,12 @@ body {
   color: var(--ink);
   background: var(--bg);
   line-height: 1.5;
+}
+
+/* Links use a dedicated high-contrast colour (browser-default blue is
+   unreadable in dark mode); hit titles opt back to --ink below. */
+a {
+  color: var(--link);
 }
 
 .app-header {
@@ -269,31 +277,51 @@ body {
   color: var(--ink);
 }
 
-/* Draw-a-site map control (SPEC-01) */
-.map-draw-control {
-  background: none;
-  border: none;
+/* Draw-a-site button (in the search panel; drawing happens on the map) */
+.boundary-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--ink-soft);
+  padding-top: 0.6rem;
 }
 
-.map-draw-button {
-  display: block;
-  padding: 0.4rem 0.7rem;
-  font: 600 0.85rem/1 system-ui, sans-serif;
-  color: #fff;
-  background: var(--accent);
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  white-space: nowrap;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+.draw-button {
+  align-self: flex-start;
+  margin-top: 0;
 }
 
-.map-draw-button:hover {
-  background: var(--accent-hover);
-}
-
-.map-draw-button.is-drawing {
+.draw-button.is-drawing {
   background: #a4262c;
+}
+
+.draw-button.is-drawing:hover {
+  background: #8a2025;
+}
+
+/* Collapsed search summary shown after a check */
+.search-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.6rem;
+}
+
+.search-summary-label {
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.search-summary-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.search-summary .button-inline {
+  margin: 0;
 }
 
 .text-input:focus {

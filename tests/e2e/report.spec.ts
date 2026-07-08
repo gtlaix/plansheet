@@ -205,8 +205,8 @@ test('pasting a site boundary runs a polygon check, shows area and draws it', as
 });
 
 test('drawing a site boundary on the map runs a polygon check', async ({ page }) => {
-  const drawBtn = page.locator('.map-draw-button');
-  await expect(drawBtn).toContainText('Draw site');
+  const drawBtn = page.locator('.draw-button');
+  await expect(drawBtn).toContainText('Draw site on map');
 
   // Entering draw mode lazy-loads geoman, so the label flips asynchronously.
   await drawBtn.click();
@@ -239,6 +239,21 @@ test('an easting/northing boundary is rejected with a reproject message', async 
   );
   await page.getByRole('button', { name: 'Check site boundary' }).click();
   await expect(page.locator('.search-error')).toContainText('EPSG:27700');
+});
+
+test('the search panel collapses after a check and reopens on demand', async ({ page }) => {
+  await expect(page.locator('.search-forms')).toBeVisible();
+  await page.fill('#postcode-input', 'SW1A 1AA');
+  await page.press('#postcode-input', 'Enter');
+  await page.waitForSelector('.hit-list');
+
+  await expect(page.locator('.search-forms')).toBeHidden();
+  await expect(page.locator('.search-summary')).toBeVisible();
+  await expect(page.locator('.search-summary-text')).toContainText('SW1A 1AA');
+
+  await page.getByRole('button', { name: 'New search' }).click();
+  await expect(page.locator('.search-forms')).toBeVisible();
+  await expect(page.locator('#postcode-input')).toBeVisible();
 });
 
 test('dark mode toggle flips the theme attribute', async ({ page }) => {

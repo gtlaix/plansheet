@@ -33,11 +33,20 @@ function searchButton(): HTMLButtonElement {
  * latitude/longitude row. Resolved locations are passed to `onSelect`; the
  * map-click path lives in map.ts.
  */
+export interface SearchPanel {
+  setBusy(busy: boolean): void;
+  /** Reflect the map's polygon-drawing state on the Draw button. */
+  setDrawing(drawing: boolean): void;
+  /** Fold the panel to a one-line summary after a successful check. */
+  collapse(label: string): void;
+}
+
 export function createSearchPanel(
   root: HTMLElement,
   onSelect: (loc: LocationSelection) => void,
   onBoundary: (geom: AreaGeometry, label?: string) => void,
-): { setBusy(busy: boolean): void } {
+  onDraw: () => void,
+): SearchPanel {
   const error = el('p', { class: 'search-error', role: 'alert', hidden: true });
 
   const showError = (msg: string) => {
@@ -159,33 +168,72 @@ export function createSearchPanel(
   const boundarySection = el(
     'details',
     { class: 'boundary-import' },
-    el('summary', {}, 'Check a site boundary (polygon)'),
+    el('summary', {}, 'or paste / upload GeoJSON or WKT'),
     el(
       'p',
       { class: 'hint' },
-      'Appraise a whole site, not just a point — a boundary catches constraints that clip its edge. Paste or upload GeoJSON or WKT in WGS84 longitude/latitude order.',
+      'Paste or upload a boundary as GeoJSON or WKT in WGS84 longitude/latitude order.',
     ),
     boundaryText,
     el('div', { class: 'boundary-actions' }, boundaryFile, boundaryButton),
   );
 
-  const panel = el(
+  // --- Draw a site boundary (the drawing itself happens on the map) ---
+  const drawButton = el('button', { type: 'button', class: 'button draw-button' }, '▱ Draw site on map');
+  drawButton.addEventListener('click', () => onDraw());
+  const setDrawing = (drawing: boolean) => {
+    drawButton.textContent = drawing ? '✕ Cancel drawing' : '▱ Draw site on map';
+    drawButton.classList.toggle('is-drawing', drawing);
+  };
+
+  const boundaryGroup = el(
     'div',
-    { class: 'search-panel' },
+    { class: 'boundary-group' },
+    el('label', { class: 'field-label' }, 'Site boundary — appraise a whole site'),
+    drawButton,
+    boundarySection,
+  );
+
+  const forms = el(
+    'div',
+    { class: 'search-forms' },
     postcodeForm,
     el('p', { class: 'search-divider' }, 'or'),
     coordsForm,
     el('p', { class: 'search-divider' }, 'or'),
     bngForm,
-    boundarySection,
+    boundaryGroup,
     error,
     el('p', { class: 'hint' }, 'Or click anywhere on the map.'),
   );
+
+  // Collapsed summary shown after a check, so the results have room.
+  const summaryText = el('span', { class: 'search-summary-text' });
+  const changeButton = el('button', { type: 'button', class: 'button button-secondary button-inline' }, '↻ New search');
+  const setCollapsed = (collapsed: boolean) => {
+    forms.hidden = collapsed;
+    summary.hidden = !collapsed;
+  };
+  changeButton.addEventListener('click', () => setCollapsed(false));
+  const summary = el(
+    'div',
+    { class: 'search-summary', hidden: true },
+    el('span', { class: 'search-summary-label' }, 'Checked:'),
+    summaryText,
+    changeButton,
+  );
+
+  const panel = el('div', { class: 'search-panel' }, forms, summary);
   root.append(panel);
 
   return {
     setBusy(busy: boolean) {
-      for (const button of panel.querySelectorAll('button')) button.disabled = busy;
+      for (const button of forms.querySelectorAll('button')) button.disabled = busy;
+    },
+    setDrawing,
+    collapse(label: string) {
+      summaryText.textContent = label;
+      setCollapsed(true);
     },
   };
 }

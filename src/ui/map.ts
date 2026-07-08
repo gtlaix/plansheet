@@ -41,6 +41,8 @@ export interface MapController {
   /** Render a drawn/imported site boundary and frame the map to it (SPEC-01). */
   showBoundary(geojson: GeoJSON.Polygon | GeoJSON.MultiPolygon): void;
   clearBoundary(): void;
+  /** Start or cancel polygon-drawing mode (the trigger lives in the search panel). */
+  toggleDraw(): void;
 }
 
 /** A rectangle comfortably larger than the map's max bounds, for the mask's outer ring. */
@@ -81,6 +83,7 @@ export function createMap(
   container: HTMLElement,
   onPick: (lat: number, lng: number) => void,
   onBoundary: (geom: GeoJSON.Polygon | GeoJSON.MultiPolygon) => void,
+  onDrawChange: (drawing: boolean) => void = () => {},
 ): MapController {
   const bounds = L.latLngBounds(
     [ENGLAND_BOUNDS.south, ENGLAND_BOUNDS.west],
@@ -122,32 +125,23 @@ export function createMap(
   };
   legend.addTo(map);
 
-  // --- Draw-a-site control (geoman is lazy-loaded on first use, keeping it out
-  //     of the main bundle; a completed polygon feeds the same check pipeline) ---
+  // --- Draw-a-site (geoman is lazy-loaded on first use, keeping it out of the
+  //     main bundle; a completed polygon feeds the same check pipeline). The
+  //     draw trigger lives in the search panel; the map just owns the mode. ---
   let drawing = false;
   let geomanLoaded: Promise<void> | null = null;
 
   const pm = () => (map as unknown as { pm: GeomanDraw }).pm;
 
-  const drawButton = L.DomUtil.create('button', 'map-draw-button');
-  drawButton.type = 'button';
-  drawButton.setAttribute('aria-label', 'Draw a site boundary');
-
-  const setDrawLabel = () => {
-    drawButton.textContent = drawing ? '✕ Cancel drawing' : '▱ Draw site';
-    drawButton.title = drawing ? 'Cancel drawing' : 'Draw a site boundary — click corners, double-click to finish';
-    drawButton.classList.toggle('is-drawing', drawing);
-  };
-  setDrawLabel();
-
   const stopDrawing = () => {
+    const wasDrawing = drawing;
     drawing = false;
-    setDrawLabel();
     try {
       pm().disableDraw();
     } catch {
       // geoman not loaded yet — nothing to disable
     }
+    if (wasDrawing) onDrawChange(false);
   };
 
   const loadGeoman = () => {
@@ -176,24 +170,9 @@ export function createMap(
   const startDrawing = async () => {
     await loadGeoman();
     drawing = true;
-    setDrawLabel();
+    onDrawChange(true);
     pm().enableDraw('Polygon', { snappable: true, finishOn: 'dblclick' });
   };
-
-  L.DomEvent.on(drawButton, 'click', (e) => {
-    L.DomEvent.stop(e);
-    if (drawing) stopDrawing();
-    else void startDrawing();
-  });
-
-  const drawControl = new L.Control({ position: 'topleft' });
-  drawControl.onAdd = () => {
-    const div = L.DomUtil.create('div', 'leaflet-bar map-draw-control');
-    L.DomEvent.disableClickPropagation(div);
-    div.appendChild(drawButton);
-    return div;
-  };
-  drawControl.addTo(map);
 
   map.on('click', (e: L.LeafletMouseEvent) => {
     if (drawing) return; // clicks are placing polygon vertices, not picking a point
@@ -245,6 +224,11 @@ export function createMap(
         boundary.remove();
         boundary = null;
       }
+    },
+
+    toggleDraw() {
+      if (drawing) stopDrawing();
+      else void startDrawing();
     },
 
     showOverlays(collection, scoreBySlug, categoryBySlug) {
