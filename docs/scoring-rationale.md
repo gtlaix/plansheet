@@ -56,8 +56,9 @@ local-nature-recovery-strategy 32.
 local-green-space 70 · protected-view 60 · heritage-coast 60.
 
 **Hazard & safeguarding:** control-of-major-accident-hazards-site 60 · contaminated-land 58 ·
-safety-hazard-area 55 · hs2-safeguarded-area 55 · military-explosives-site 50 · aerodrome 45 ·
-historic-stone-quarry 38 · safeguarded-wharf 35.
+public-safety-zone-around-airport 58 (runway-end zone where new occupied development is not
+permitted) · safety-hazard-area 55 · hs2-safeguarded-area 55 · military-explosives-site 50 ·
+aerodrome 45 · historic-stone-quarry 38 · safeguarded-wharf 35.
 
 **Local restrictions:** article-4-direction-area 55 · tree-preservation-zone 50 · tree 48 ·
 asset-of-community-value 42 · air-quality-management-area 38.

@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "lint": "eslint .",
-    "check": "npm run lint && npm test && npm run build"
+    "check": "npm run lint && npm test && npm run build",
+    "datasets:missing": "node scripts/find-missing-datasets.mjs"
   },
   "dependencies": {
     "@geoman-io/leaflet-geoman-free": "^2.20.0",

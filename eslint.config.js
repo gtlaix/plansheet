@@ -6,6 +6,13 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    // Node scripts (build/maintenance helpers) run in Node, not the browser.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { process: 'readonly', console: 'readonly', fetch: 'readonly' },
+    },
+  },
+  {
     files: ['**/*.ts'],
     rules: {
       // TypeScript already checks references; no-undef is redundant and would

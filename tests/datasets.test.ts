@@ -87,8 +87,12 @@ describe('buildRegistry', () => {
     expect(reg('control-of-major-accident-hazards-site').category).toBe('hazard');
     expect(reg('mineral-safeguarding-area').category).toBe('info');
     expect(reg('main-river').category).toBe('flood');
-    // the corrected minerals slug is present; the wrong guess is gone
-    expect(OVERLAY['minerals-plan-boundary']).toBeUndefined();
+    // both real minerals geography datasets are enriched (per the MHCLG catalogue):
+    // the safeguarding area (site-level) and the strategic plan boundary.
+    expect(reg('minerals-plan-boundary').category).toBe('info');
+    // newly added from the catalogue
+    expect(reg('public-safety-zone-around-airport').category).toBe('hazard');
+    expect(reg('gypsy-and-traveller-site').category).toBe('info');
   });
 });
 

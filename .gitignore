@@ -6,3 +6,7 @@ dist/
 # Playwright
 test-results/
 playwright-report/
+
+# Output of scripts/find-missing-datasets.mjs
+missing-datasets.md
+missing-datasets.json

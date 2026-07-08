@@ -100,6 +100,7 @@ export const OVERLAY: Record<string, OverlayEntry> = {
   'safeguarded-aerodrome': { category: 'hazard', impactScore: 45, blurb: 'Aerodrome safeguarding: height, lighting and bird-strike constraints apply.' },
   'historic-stone-quarry': { category: 'hazard', impactScore: 38, blurb: 'Former quarry — potential ground stability/mining legacy to investigate.' },
   'safeguarded-wharf': { category: 'hazard', impactScore: 35, blurb: 'Safeguarded wharf; loss of freight-handling capacity is resisted.' },
+  'public-safety-zone-around-airport': { category: 'hazard', impactScore: 58, blurb: 'Public Safety Zone at a runway end: development that increases the number of people living, working or gathering here is not permitted.' },
 
   // --- Local restrictions ---
   'article-4-direction-area': { category: 'local', impactScore: 55, blurb: 'Permitted development rights are withdrawn here — planning permission needed for works that are normally allowed.', partialCoverage: true },
@@ -113,6 +114,7 @@ export const OVERLAY: Record<string, OverlayEntry> = {
   'infrastructure-project': { category: 'info', impactScore: 35 },
   'employment-allocation': { category: 'info', impactScore: 25, blurb: 'Allocated for employment use in the development plan.' },
   'central-activities-zone': { category: 'info', impactScore: 25 },
+  'gypsy-and-traveller-site': { category: 'info', impactScore: 28, blurb: 'Allocated or existing Gypsy and Traveller site — a land-use consideration for development here.' },
   'design-code-area': { category: 'info', impactScore: 22, blurb: 'A design code applies to development here.', partialCoverage: true },
   'brownfield-land': { category: 'info', impactScore: 20, blurb: 'On the brownfield register — generally an opportunity, not a constraint.', partialCoverage: true },
   'brownfield-site': { category: 'info', impactScore: 20, partialCoverage: true },
@@ -126,6 +128,7 @@ export const OVERLAY: Record<string, OverlayEntry> = {
   // Minerals safeguarding and waste plan areas are strategic policy layers, not
   // site-level constraints for most applications — kept low/informational.
   'mineral-safeguarding-area': { category: 'info', impactScore: 30, blurb: 'Safeguarded mineral resource; a minerals assessment may be needed to show it will not be sterilised.' },
+  'minerals-plan-boundary': { category: 'info', impactScore: 8, blurb: 'Within a minerals plan area (strategic policy — informational for most development).' },
   'waste-plan-boundary': { category: 'info', impactScore: 8, blurb: 'Within a waste plan area (strategic policy — informational for most development).' },
 };
 
