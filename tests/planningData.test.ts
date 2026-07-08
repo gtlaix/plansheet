@@ -5,6 +5,7 @@ import {
   entityPageUrl,
   fetchAllDatasets,
   queryEntities,
+  queryEntitiesByGeometry,
   queryGeojson,
 } from '../src/api/planningData';
 
@@ -119,6 +120,41 @@ describe('queryEntities', () => {
     expect(calls).toBe(2); // initial + one retry
     expect(result.entities).toEqual([]);
     expect(result.failedDatasets).toEqual(['a', 'b']);
+  });
+});
+
+describe('queryEntitiesByGeometry', () => {
+  const WKT = 'POLYGON ((-0.143 51.5, -0.14 51.5, -0.14 51.502, -0.143 51.502, -0.143 51.5))';
+
+  it('queries by geometry + intersects instead of a point', async () => {
+    const urls: string[] = [];
+    const fetchFn = vi.fn(async (url: string) => {
+      urls.push(url);
+      return jsonResponse(ENTITY_FIXTURE);
+    });
+    const result = await queryEntitiesByGeometry(WKT, ['conservation-area'], fetchFn as unknown as typeof fetch);
+
+    // URLSearchParams encodes spaces as "+" (form semantics the API decodes).
+    const decoded = decodeURIComponent(urls[0]).replace(/\+/g, ' ');
+    expect(decoded).toContain('geometry=POLYGON ((-0.143 51.5');
+    expect(decoded).toContain('geometry_relation=intersects');
+    expect(decoded).not.toContain('latitude=');
+    expect(decoded).toContain('dataset=conservation-area');
+    expect(result.entities).toHaveLength(2);
+  });
+
+  it('batches, paginates and reports failures like the point query', async () => {
+    const fetchFn = vi.fn(async (url: string) => {
+      if (url.includes('offset=500')) return jsonResponse({ count: 501, entities: [ENTITY_FIXTURE.entities[1]], links: {} });
+      return jsonResponse({
+        count: 501,
+        entities: [ENTITY_FIXTURE.entities[0]],
+        links: { next: 'https://www.planning.data.gov.uk/entity.json?offset=500' },
+      });
+    });
+    const result = await queryEntitiesByGeometry(WKT, ['tree'], fetchFn as unknown as typeof fetch);
+    expect(result.entities).toHaveLength(2); // both pages merged
+    expect(result.failedDatasets).toEqual([]);
   });
 });
 

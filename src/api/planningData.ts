@@ -76,6 +76,21 @@ function entityUrl(path: string, lat: number, lng: number, slugs: string[]): str
   return `${PLANNING_DATA_BASE}${path}?${params.toString()}`;
 }
 
+/**
+ * Build a geometry-query URL: entities whose geometry intersects the given WKT.
+ * Used by the polygon (site-boundary) flow — SPEC-01. `geometry_relation`
+ * defaults to `intersects` so an edge-clipping constraint is included.
+ */
+function geometryUrl(path: string, wkt: string, slugs: string[]): string {
+  const params = new URLSearchParams({
+    geometry: wkt,
+    geometry_relation: 'intersects',
+    limit: '500',
+  });
+  for (const slug of slugs) params.append('dataset', slug);
+  return `${PLANNING_DATA_BASE}${path}?${params.toString()}`;
+}
+
 export interface EntityQueryResult {
   entities: PlanningEntity[];
   /** Dataset slugs whose batch request failed (they could not be checked). */
@@ -96,11 +111,53 @@ async function fetchEntityPage(url: string, fetchFn: typeof fetch, signal?: Abor
 }
 
 /**
+ * Fetch every page of one batch, following `links.next` to the pagination cap.
+ * A failed batch (after one retry inside `fetchEntityPage`) is reported via
+ * `failed` rather than thrown, so one bad batch doesn't sink the whole report.
+ */
+async function collectBatch(
+  firstUrl: string,
+  batch: string[],
+  fetchFn: typeof fetch,
+  signal?: AbortSignal,
+): Promise<{ entities: PlanningEntity[]; failed: string[] }> {
+  try {
+    const entities: PlanningEntity[] = [];
+    let url: string | undefined = firstUrl;
+    for (let page = 0; url && page < MAX_PAGES_PER_BATCH; page++) {
+      const body = await fetchEntityPage(url, fetchFn, signal);
+      entities.push(...(body.entities ?? []));
+      url = body.links?.next || undefined;
+      if (url && page === MAX_PAGES_PER_BATCH - 1) {
+        console.warn('plansheet: pagination cap reached for', batch);
+      }
+    }
+    return { entities, failed: [] };
+  } catch (err) {
+    if (!signal?.aborted) console.warn('plansheet: entity query failed for', batch, err);
+    return { entities: [], failed: batch };
+  }
+}
+
+async function runBatches(
+  slugs: string[],
+  buildFirstUrl: (batch: string[]) => string,
+  fetchFn: typeof fetch,
+  signal?: AbortSignal,
+): Promise<EntityQueryResult> {
+  const results = await Promise.all(
+    chunk(slugs, DATASETS_PER_REQUEST).map((batch) => collectBatch(buildFirstUrl(batch), batch, fetchFn, signal)),
+  );
+  return {
+    entities: results.flatMap((r) => r.entities),
+    failedDatasets: results.flatMap((r) => r.failed),
+  };
+}
+
+/**
  * Return every entity whose geometry intersects the point, across all the
  * given datasets. Requests are batched and fired in parallel, and pagination
- * links are followed (the API pages at 500 entities). A failed batch is
- * retried once, then reported via `failedDatasets` rather than throwing, so
- * one bad batch doesn't sink the whole report.
+ * links are followed (the API pages at 500 entities).
  */
 export async function queryEntities(
   lat: number,
@@ -109,32 +166,22 @@ export async function queryEntities(
   fetchFn: typeof fetch = fetch,
   signal?: AbortSignal,
 ): Promise<EntityQueryResult> {
-  const batches = chunk(slugs, DATASETS_PER_REQUEST);
-  const results = await Promise.all(
-    batches.map(async (batch) => {
-      try {
-        const entities: PlanningEntity[] = [];
-        let url: string | undefined = entityUrl('/entity.json', lat, lng, batch);
-        for (let page = 0; url && page < MAX_PAGES_PER_BATCH; page++) {
-          const body = await fetchEntityPage(url, fetchFn, signal);
-          entities.push(...(body.entities ?? []));
-          url = body.links?.next || undefined;
-          if (url && page === MAX_PAGES_PER_BATCH - 1) {
-            console.warn('plansheet: pagination cap reached for', batch);
-          }
-        }
-        return { entities, failed: [] as string[] };
-      } catch (err) {
-        if (!signal?.aborted) console.warn('plansheet: entity query failed for', batch, err);
-        return { entities: [] as PlanningEntity[], failed: batch };
-      }
-    }),
-  );
+  return runBatches(slugs, (batch) => entityUrl('/entity.json', lat, lng, batch), fetchFn, signal);
+}
 
-  return {
-    entities: results.flatMap((r) => r.entities),
-    failedDatasets: results.flatMap((r) => r.failed),
-  };
+/**
+ * Return every entity whose geometry intersects the given WKT polygon, across
+ * all the given datasets — the site-boundary flow (SPEC-01). This catches
+ * constraints that clip the edge of a site, which a centroid point query
+ * would miss. Same batching, pagination and per-batch failure handling.
+ */
+export async function queryEntitiesByGeometry(
+  wkt: string,
+  slugs: string[],
+  fetchFn: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<EntityQueryResult> {
+  return runBatches(slugs, (batch) => geometryUrl('/entity.json', wkt, batch), fetchFn, signal);
 }
 
 /**
@@ -148,11 +195,30 @@ export async function queryGeojson(
   fetchFn: typeof fetch = fetch,
   signal?: AbortSignal,
 ): Promise<GeoJSON.FeatureCollection | null> {
+  return collectGeojson(slugs, (batch) => entityUrl('/entity.geojson', lat, lng, batch), fetchFn, signal);
+}
+
+/** GeoJSON overlay geometries intersecting a WKT polygon (site-boundary flow). */
+export async function queryGeojsonByGeometry(
+  wkt: string,
+  slugs: string[],
+  fetchFn: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<GeoJSON.FeatureCollection | null> {
+  return collectGeojson(slugs, (batch) => geometryUrl('/entity.geojson', wkt, batch), fetchFn, signal);
+}
+
+async function collectGeojson(
+  slugs: string[],
+  buildUrl: (batch: string[]) => string,
+  fetchFn: typeof fetch,
+  signal?: AbortSignal,
+): Promise<GeoJSON.FeatureCollection | null> {
   if (slugs.length === 0) return null;
   try {
     const collections = await Promise.all(
       chunk(slugs, DATASETS_PER_REQUEST).map(async (batch) => {
-        const res = await fetchFn(entityUrl('/entity.geojson', lat, lng, batch), { signal });
+        const res = await fetchFn(buildUrl(batch), { signal });
         if (!res.ok) throw new Error(`entity.geojson returned ${res.status}`);
         return (await res.json()) as GeoJSON.FeatureCollection;
       }),
