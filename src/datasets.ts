@@ -36,6 +36,7 @@ export const OVERLAY: Record<string, OverlayEntry> = {
   'title-boundary': { category: 'administrative', impactScore: 0, blurb: 'HM Land Registry registered title extent.' },
   'local-resilience-forum-boundary': { category: 'administrative', impactScore: 0 },
   'local-plan-boundary': { category: 'administrative', impactScore: 0, blurb: 'The adopted local plan area covering this site.' },
+  'minerals-and-waste-planning-authority': { category: 'administrative', impactScore: 0, blurb: 'The authority responsible for minerals and waste planning decisions here.' },
 
   // --- Statutory heritage: the strongest constraints ---
   'scheduled-monument': { category: 'heritage', impactScore: 95, blurb: 'Nationally important monument; works need Scheduled Monument Consent.' },
@@ -52,6 +53,7 @@ export const OVERLAY: Record<string, OverlayEntry> = {
   'archaeological-priority-area': { category: 'heritage', impactScore: 62, blurb: 'Archaeological assessment likely required before development.', partialCoverage: true },
   'non-designated-archeology-asset-of-national-importance': { category: 'heritage', impactScore: 58, blurb: 'Archaeology of national importance though not scheduled; strong weight against harm.' },
   'heritage-action-zone': { category: 'heritage', impactScore: 52, blurb: 'Historic England regeneration area focused on heritage-led renewal.' },
+  'guardianship-site-and-english-heritage-site': { category: 'heritage', impactScore: 72, blurb: 'Monument or site in state guardianship (English Heritage) — nationally important heritage.' },
   'locally-listed-building': { category: 'heritage', impactScore: 45, blurb: 'On the local heritage list; a material consideration in decisions.', partialCoverage: true },
   'non-designated-and-locally-listed-historic-asset': { category: 'heritage', impactScore: 44, blurb: 'Non-designated heritage asset; weighed in the planning balance.', partialCoverage: true },
   'certificate-of-immunity': { category: 'info', impactScore: 15, blurb: 'Certified immune from listing for five years — reduces heritage risk.' },
@@ -61,7 +63,10 @@ export const OVERLAY: Record<string, OverlayEntry> = {
   'special-area-of-conservation': { category: 'ecology', impactScore: 90, blurb: 'European protected habitat; development needs Habitats Regulations assessment.' },
   'special-protection-area': { category: 'ecology', impactScore: 90, blurb: 'European protected bird habitat; development needs Habitats Regulations assessment.' },
   ramsar: { category: 'ecology', impactScore: 90, blurb: 'Internationally important wetland, protected as a European site.' },
+  'proposed-ramsar-site': { category: 'ecology', impactScore: 85, blurb: 'Proposed Ramsar wetland — afforded the same protection as a classified Ramsar site.' },
   'ancient-woodland': { category: 'ecology', impactScore: 85, blurb: 'Irreplaceable habitat; development causing loss is wholly exceptional.' },
+  'long-protected-woodland': { category: 'ecology', impactScore: 60, blurb: 'Long-protected woodland; strong weight against loss of this habitat.' },
+  'long-established-woodland': { category: 'ecology', impactScore: 55, blurb: 'Long-established woodland; loss is a material consideration for habitat and trees.' },
   'national-nature-reserve': { category: 'ecology', impactScore: 80 },
   'nutrient-neutrality-catchment': { category: 'ecology', impactScore: 55, blurb: 'Habitats Regulations: net-zero nutrient mitigation is required before residential development can proceed.' },
   'wildbelt': { category: 'ecology', impactScore: 50, blurb: 'Land identified to recover nature; development expected to protect its potential.' },
@@ -90,6 +95,8 @@ export const OVERLAY: Record<string, OverlayEntry> = {
   'local-green-space': { category: 'landscape', impactScore: 70, blurb: 'Local Green Space: development ruled out other than in special circumstances (Green Belt policy applies).' },
   'protected-view': { category: 'landscape', impactScore: 60, blurb: 'Within a protected view/vista; building heights and massing are constrained.' },
   'heritage-coast': { category: 'landscape', impactScore: 60 },
+  'london-square': { category: 'landscape', impactScore: 62, blurb: 'Garden square protected under the London Squares Preservation Act 1931; development is tightly restricted.' },
+  'historic-non-designed-rural-landscape-local-landscape-area': { category: 'landscape', impactScore: 50, blurb: 'Locally valued historic/rural landscape area; a material consideration for landscape and visual impact.', partialCoverage: true },
 
   // --- Hazard, safeguarding & ground conditions ---
   'control-of-major-accident-hazards-site': { category: 'hazard', impactScore: 60, blurb: 'COMAH consultation zone: the HSE is consulted and development near hazardous installations may be refused.' },
@@ -101,6 +108,8 @@ export const OVERLAY: Record<string, OverlayEntry> = {
   'historic-stone-quarry': { category: 'hazard', impactScore: 38, blurb: 'Former quarry — potential ground stability/mining legacy to investigate.' },
   'safeguarded-wharf': { category: 'hazard', impactScore: 35, blurb: 'Safeguarded wharf; loss of freight-handling capacity is resisted.' },
   'public-safety-zone-around-airport': { category: 'hazard', impactScore: 58, blurb: 'Public Safety Zone at a runway end: development that increases the number of people living, working or gathering here is not permitted.' },
+  'nuclear-safety-zone': { category: 'hazard', impactScore: 62, blurb: 'Emergency planning / consultation zone around a nuclear installation; development is restricted and consulted on.' },
+  'transport-under-tcpa-route': { category: 'hazard', impactScore: 45, blurb: 'Safeguarded route for a proposed transport scheme; development that would prejudice it may be refused.' },
 
   // --- Local restrictions ---
   'article-4-direction-area': { category: 'local', impactScore: 55, blurb: 'Permitted development rights are withdrawn here — planning permission needed for works that are normally allowed.', partialCoverage: true },
@@ -111,6 +120,9 @@ export const OVERLAY: Record<string, OverlayEntry> = {
 
   // --- Informational / lower impact ---
   'agricultural-land-classification': { category: 'info', impactScore: 30, blurb: 'Agricultural land grade; the best and most versatile grades (1–3a) are protected by policy.' },
+  'planning-application': { category: 'info', impactScore: 28, blurb: 'A recorded planning application on or near this site — planning history, not a designation.' },
+  'protected-land': { category: 'info', impactScore: 30, blurb: 'Land under a protective designation — check the specific local policy for what it restricts.' },
+  'buffer-zone': { category: 'info', impactScore: 25, blurb: 'A buffer zone around a protected feature; check what it safeguards.' },
   'infrastructure-project': { category: 'info', impactScore: 35 },
   'employment-allocation': { category: 'info', impactScore: 25, blurb: 'Allocated for employment use in the development plan.' },
   'central-activities-zone': { category: 'info', impactScore: 25 },

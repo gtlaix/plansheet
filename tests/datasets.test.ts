@@ -93,6 +93,11 @@ describe('buildRegistry', () => {
     // newly added from the catalogue
     expect(reg('public-safety-zone-around-airport').category).toBe('hazard');
     expect(reg('gypsy-and-traveller-site').category).toBe('info');
+    // added from a live find-missing-datasets run
+    expect(reg('minerals-and-waste-planning-authority').category).toBe('administrative');
+    expect(reg('proposed-ramsar-site').category).toBe('ecology');
+    expect(reg('planning-application').category).toBe('info');
+    expect(reg('nuclear-safety-zone').category).toBe('hazard');
   });
 });
 
