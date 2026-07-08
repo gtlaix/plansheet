@@ -208,6 +208,123 @@ export function center(geom: AreaGeometry): { lat: number; lng: number } {
 
 // --- Parsing & validation (import: story 3) ----------------------------------
 
+// --- Shareable polygon encoding (compact, URL-safe) --------------------------
+// A drawn/imported boundary is encoded to a base64url string so it fits in a
+// shareable `?site=` link: 1e5-scaled coordinates, delta + zigzag + varint
+// encoded, simplified just enough to stay under a length budget.
+
+const SITE_SCALE = 1e5; // ~1 m precision — plenty for a shared site outline
+
+const zigzag = (n: number) => (n << 1) ^ (n >> 31);
+const unzigzag = (n: number) => (n >>> 1) ^ -(n & 1);
+
+function pushVarint(bytes: number[], value: number): void {
+  let v = value >>> 0;
+  while (v >= 0x80) {
+    bytes.push((v & 0x7f) | 0x80);
+    v >>>= 7;
+  }
+  bytes.push(v);
+}
+
+function readVarint(bytes: Uint8Array, pos: { i: number }): number {
+  let result = 0;
+  let shift = 0;
+  let b: number;
+  do {
+    b = bytes[pos.i++];
+    result |= (b & 0x7f) << shift;
+    shift += 7;
+  } while (b & 0x80);
+  return result >>> 0;
+}
+
+function bytesToBase64url(bytes: number[]): string {
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64urlToBytes(s: string): Uint8Array {
+  const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+/** Encode a boundary to a compact, URL-safe token for a shareable `?site=` link. */
+export function encodeSite(geom: AreaGeometry, maxChars = 1600): string {
+  const build = (g: AreaGeometry): string => {
+    const bytes: number[] = [];
+    const polygons = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+    bytes.push(g.type === 'Polygon' ? 1 : 2);
+    pushVarint(bytes, polygons.length);
+    let prevX = 0;
+    let prevY = 0;
+    for (const rings of polygons) {
+      pushVarint(bytes, rings.length);
+      for (const ring of rings) {
+        pushVarint(bytes, ring.length);
+        for (const [lng, lat] of ring) {
+          const x = Math.round(lng * SITE_SCALE);
+          const y = Math.round(lat * SITE_SCALE);
+          pushVarint(bytes, zigzag(x - prevX));
+          pushVarint(bytes, zigzag(y - prevY));
+          prevX = x;
+          prevY = y;
+        }
+      }
+    }
+    return bytesToBase64url(bytes);
+  };
+
+  let current = geom;
+  let out = build(current);
+  let tolerance = 0.00002;
+  for (let i = 0; i < 30 && out.length > maxChars; i++) {
+    current = simplifyGeometry(current, tolerance);
+    out = build(current);
+    tolerance *= 1.7;
+  }
+  return out;
+}
+
+/** Decode a `?site=` token back to a geometry; returns null on any malformed input. */
+export function decodeSite(encoded: string): AreaGeometry | null {
+  try {
+    const bytes = base64urlToBytes(encoded);
+    const pos = { i: 0 };
+    const type = bytes[pos.i++];
+    if (type !== 1 && type !== 2) return null;
+    const numPolys = readVarint(bytes, pos);
+    let prevX = 0;
+    let prevY = 0;
+    const polygons: GeoJSON.Position[][][] = [];
+    for (let p = 0; p < numPolys; p++) {
+      const numRings = readVarint(bytes, pos);
+      const rings: GeoJSON.Position[][] = [];
+      for (let r = 0; r < numRings; r++) {
+        const numPts = readVarint(bytes, pos);
+        const ring: GeoJSON.Position[] = [];
+        for (let k = 0; k < numPts; k++) {
+          prevX += unzigzag(readVarint(bytes, pos));
+          prevY += unzigzag(readVarint(bytes, pos));
+          ring.push([prevX / SITE_SCALE, prevY / SITE_SCALE]);
+        }
+        rings.push(ring);
+      }
+      polygons.push(rings);
+    }
+    if (polygons.length === 0 || polygons[0].length === 0) return null;
+    return type === 1
+      ? { type: 'Polygon', coordinates: polygons[0] }
+      : { type: 'MultiPolygon', coordinates: polygons };
+  } catch {
+    return null;
+  }
+}
+
 /** Ensure a ring is closed (first position repeated at the end). */
 function closeRing(ring: GeoJSON.Position[]): GeoJSON.Position[] {
   if (ring.length === 0) return ring;

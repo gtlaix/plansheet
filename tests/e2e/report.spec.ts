@@ -191,10 +191,17 @@ test('pasting a site boundary runs a polygon check, shows area and draws it', as
   await expect(page.locator('.leaflet-site-boundary-pane path')).toHaveCount(1);
   // the geometry query still returns the ranked constraints
   await expect(page.locator('.hit-list')).toContainText('Buckingham Palace');
-  // polygon checks drop the point ?lat= share param
+  // the boundary is encoded into a shareable ?site= link (not a point ?lat=)
+  expect(page.url()).toContain('site=');
   expect(page.url()).not.toContain('lat=');
   // JSON export still available for a polygon check
   await expect(page.getByRole('button', { name: 'Download JSON' })).toBeVisible();
+
+  // opening that shared link restores the same site boundary
+  await page.goto(page.url());
+  await page.waitForSelector('.report-area');
+  await expect(page.locator('.leaflet-site-boundary-pane path')).toHaveCount(1);
+  await expect(page.locator('.report-sub')).toContainText('Shared site boundary');
 });
 
 test('drawing a site boundary on the map runs a polygon check', async ({ page }) => {

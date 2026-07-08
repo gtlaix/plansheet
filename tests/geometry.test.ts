@@ -4,6 +4,8 @@ import {
   bbox,
   BoundaryError,
   center,
+  decodeSite,
+  encodeSite,
   formatArea,
   MAX_QUERY_WKT_CHARS,
   parseBoundary,
@@ -128,6 +130,42 @@ describe('wktForQuery', () => {
     const simplified = parseBoundary(wktForQuery(big));
     expect(areaM2(simplified)).toBeGreaterThan(original * 0.97);
     expect(areaM2(simplified)).toBeLessThan(original * 1.03);
+  });
+});
+
+describe('encodeSite / decodeSite', () => {
+  it('round-trips a polygon through a URL-safe token', () => {
+    const token = encodeSite(SQUARE);
+    expect(token).toMatch(/^[A-Za-z0-9_-]+$/); // URL-safe, no padding
+    const back = decodeSite(token)!;
+    expect(back.type).toBe('Polygon');
+    const ring = back.coordinates[0] as GeoJSON.Position[];
+    (SQUARE.coordinates[0] as GeoJSON.Position[]).forEach(([lng, lat], i) => {
+      expect(ring[i][0]).toBeCloseTo(lng, 5);
+      expect(ring[i][1]).toBeCloseTo(lat, 5);
+    });
+  });
+
+  it('round-trips a MultiPolygon', () => {
+    const multi: AreaGeometry = {
+      type: 'MultiPolygon',
+      coordinates: [SQUARE.coordinates as GeoJSON.Position[][], SQUARE.coordinates as GeoJSON.Position[][]],
+    };
+    const back = decodeSite(encodeSite(multi))!;
+    expect(back.type).toBe('MultiPolygon');
+    expect((back as GeoJSON.MultiPolygon).coordinates).toHaveLength(2);
+  });
+
+  it('keeps a 500-vertex boundary token within the length budget', () => {
+    const big = circle(-0.14, 51.5, 0.005, 500);
+    const token = encodeSite(big, 1600);
+    expect(token.length).toBeLessThanOrEqual(1600);
+    expect(decodeSite(token)!.type).toBe('Polygon');
+  });
+
+  it('returns null for malformed tokens', () => {
+    expect(decodeSite('')).toBeNull();
+    expect(decodeSite('not-base64-@@@')).toBeNull();
   });
 });
 

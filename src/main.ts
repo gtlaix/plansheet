@@ -10,7 +10,7 @@ import {
 } from './api/planningData';
 import { reverseGeocode } from './api/geocode';
 import { buildRegistry, scoreEntity, sortHits } from './datasets';
-import { areaM2, center as geomCenter, formatArea, wktForQuery, type AreaGeometry } from './geometry';
+import { areaM2, center as geomCenter, decodeSite, encodeSite, formatArea, wktForQuery, type AreaGeometry } from './geometry';
 import { createMap, ENGLAND_BOUNDS } from './ui/map';
 import { createSearchPanel } from './ui/search';
 import { renderError, renderIdle, renderLoading, renderReport } from './ui/report';
@@ -123,10 +123,10 @@ async function runCheck(input: CheckInput): Promise<void> {
       scoreBySlug.set(hit.registry.slug, Math.max(scoreBySlug.get(hit.registry.slug) ?? 0, hit.score));
       categoryBySlug.set(hit.registry.slug, hit.registry.category);
     }
-    // Make point checks shareable/bookmarkable. Polygon boundaries aren't URL-
-    // encoded yet (a BACKLOG item), so drop any stale ?lat= from a prior check.
-    if (queryWkt) {
-      history.replaceState(null, '', location.pathname);
+    // Make every check shareable/bookmarkable: points as ?lat=&lng=, drawn or
+    // imported boundaries as a compact ?site= token.
+    if (site) {
+      history.replaceState(null, '', `?site=${encodeSite(site.geojson)}`);
     } else {
       const params = new URLSearchParams({ lat: point.lat.toFixed(6), lng: point.lng.toFixed(6) });
       if (input.label) params.set('label', input.label);
@@ -216,12 +216,16 @@ window.addEventListener('afterprint', () => {
   }
 });
 
-// Restore a shared link: ?lat=…&lng=…[&label=…]
+// Restore a shared link: ?site=… (drawn/imported boundary) or ?lat=…&lng=…[&label=…]
 {
   const params = new URLSearchParams(location.search);
+  const siteParam = params.get('site');
   const lat = Number(params.get('lat'));
   const lng = Number(params.get('lng'));
-  if (params.has('lat') && params.has('lng') && Number.isFinite(lat) && Number.isFinite(lng)) {
+  if (siteParam) {
+    const geom = decodeSite(siteParam);
+    if (geom) void runCheck({ kind: 'polygon', geom, label: 'Shared site boundary' });
+  } else if (params.has('lat') && params.has('lng') && Number.isFinite(lat) && Number.isFinite(lng)) {
     void runCheck({ kind: 'point', lat, lng, label: params.get('label') ?? undefined });
   }
 }
