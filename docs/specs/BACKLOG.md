@@ -48,9 +48,10 @@ Ideas beyond the six specs. Each is a candidate future spec; sizes are order-of-
     visual-regression snapshots of the report are still to do.
 15. **Error telemetry (S)** — optional, privacy-respecting (self-hosted Plausible/Sentry) to
     learn which datasets fail in the wild; off by default, document clearly.
-16. **Monorepo hygiene after SPEC-05 (S)** — shared eslint/prettier config, `npm run check`
-    running typecheck+test+lint across workspaces, CODEOWNERS for `packages/core/datasets.ts`
-    (domain-sensitive file).
+16. **Monorepo hygiene after SPEC-05 (S)** — ◑ **PARTLY DONE.** ESLint (flat config,
+    typescript-eslint) plus `npm run lint` and `npm run check` (lint + test + build) are in, and
+    lint gates the deploy. Prettier, cross-workspace `check` and CODEOWNERS wait for SPEC-05's
+    `packages/core`.
 17. **Overlay governance (S)** — ✅ **DONE.** [`docs/scoring-rationale.md`](../scoring-rationale.md)
     explains the tiers, base scores and per-entity modifiers in consultant terms, so score changes
     are reviewed as domain decisions. The scoring model is the product's editorial voice.
