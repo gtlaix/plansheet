@@ -91,3 +91,41 @@ export interface ReportData {
   /** Dataset slugs whose query failed — these could NOT be checked. */
   failedDatasets: string[];
 }
+
+/** Machine-readable export of a plan sheet (SPEC-03). Stable, versioned schema. */
+export interface PlansheetReport {
+  schemaVersion: 1;
+  generatedAt: string;
+  location: {
+    latitude: number;
+    longitude: number;
+    label: string | null;
+    nearestPostcode: string | null;
+  };
+  administrative: { dataset: string; label: string; name: string; reference: string; entity: number; url: string }[];
+  constraints: {
+    dataset: string;
+    label: string;
+    name: string;
+    reference: string;
+    entity: number;
+    url: string;
+    category: Category;
+    impactScore: number;
+    impactTier: string;
+    qualifier?: string;
+    detail?: string;
+    startDate?: string;
+    entryDate?: string;
+    organisation?: string;
+  }[];
+  /** LPA-sourced datasets with no hit: absence of data, NOT confirmation of no constraint. */
+  coverageIncomplete: { dataset: string; label: string }[];
+  /** Nationally-complete datasets with no hit — genuinely clear. */
+  checkedClear: { dataset: string; label: string }[];
+  /** Datasets whose query failed and could not be checked. */
+  couldNotCheck: string[];
+  /** Constraint classes the Planning Data platform does not hold at all. */
+  notCovered: { topic: string; why: string; whereToCheck: string }[];
+  disclaimer: string;
+}

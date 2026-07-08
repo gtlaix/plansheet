@@ -114,6 +114,7 @@ test('a postcode generates a ranked plan sheet, admin first', async ({ page }) =
   await expect(page.locator('.partial-list')).toContainText('Article 4 direction area');
   await expect(page.locator('#report-root')).toContainText('Not covered by this check');
   await expect(page.getByRole('button', { name: 'Copy Markdown' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Download JSON' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Print/ })).toHaveCount(0);
 
   // no always-on flood note

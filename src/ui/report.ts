@@ -2,6 +2,7 @@ import { entityPageUrl } from '../api/planningData';
 import { CATEGORY_LABELS, classifyChecked, impactTier, TIER_LABELS } from '../datasets';
 import { DATA_GAPS } from '../dataGaps';
 import { reportToMarkdown } from './markdown';
+import { reportToJson } from './reportJson';
 import type { ReportData, ScoredHit } from '../types';
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -39,22 +40,26 @@ function exportButtons(data: ReportData): HTMLElement {
     );
   });
 
-  const downloadBtn = el('button', { type: 'button', class: 'button button-secondary' }, 'Download .md');
-  downloadBtn.addEventListener('click', () => {
-    const blob = new Blob([reportToMarkdown(data)], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const slug = (data.selection.label ?? `${data.selection.lat},${data.selection.lng}`)
-      .replace(/[^a-z0-9]+/gi, '-')
-      .replace(/^-+|-+$/g, '')
-      .toLowerCase();
-    const a = el('a', { href: url, download: `plansheet-${slug || 'report'}.md` });
+  const fileSlug = (data.selection.label ?? `${data.selection.lat},${data.selection.lng}`)
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+  const download = (ext: string, mime: string, content: string) => {
+    const url = URL.createObjectURL(new Blob([content], { type: mime }));
+    const a = el('a', { href: url, download: `plansheet-${fileSlug || 'report'}.${ext}` });
     document.body.append(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-  });
+  };
 
-  return el('div', { class: 'report-actions' }, copyBtn, downloadBtn);
+  const mdBtn = el('button', { type: 'button', class: 'button button-secondary' }, 'Download .md');
+  mdBtn.addEventListener('click', () => download('md', 'text/markdown', reportToMarkdown(data)));
+
+  const jsonBtn = el('button', { type: 'button', class: 'button button-secondary' }, 'Download JSON');
+  jsonBtn.addEventListener('click', () => download('json', 'application/json', JSON.stringify(reportToJson(data), null, 2)));
+
+  return el('div', { class: 'report-actions' }, copyBtn, mdBtn, jsonBtn);
 }
 
 export function renderLoading(root: HTMLElement, label: string): void {
