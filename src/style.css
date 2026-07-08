@@ -269,6 +269,33 @@ body {
   color: var(--ink);
 }
 
+/* Draw-a-site map control (SPEC-01) */
+.map-draw-control {
+  background: none;
+  border: none;
+}
+
+.map-draw-button {
+  display: block;
+  padding: 0.4rem 0.7rem;
+  font: 600 0.85rem/1 system-ui, sans-serif;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.map-draw-button:hover {
+  background: var(--accent-hover);
+}
+
+.map-draw-button.is-drawing {
+  background: #a4262c;
+}
+
 .text-input:focus {
   outline: 3px solid #b3d4ec;
   border-color: var(--accent);

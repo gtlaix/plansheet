@@ -71,7 +71,17 @@ function englandRings(border: GeoJSON.FeatureCollection): L.LatLngTuple[][] {
  * choose a location. The view is framed and locked to England so the continent
  * (and most of Scotland) can't be panned in.
  */
-export function createMap(container: HTMLElement, onPick: (lat: number, lng: number) => void): MapController {
+/** Minimal shape of the geoman API we use (it's lazy-loaded, so untyped here). */
+interface GeomanDraw {
+  enableDraw(shape: string, options?: Record<string, unknown>): void;
+  disableDraw(): void;
+}
+
+export function createMap(
+  container: HTMLElement,
+  onPick: (lat: number, lng: number) => void,
+  onBoundary: (geom: GeoJSON.Polygon | GeoJSON.MultiPolygon) => void,
+): MapController {
   const bounds = L.latLngBounds(
     [ENGLAND_BOUNDS.south, ENGLAND_BOUNDS.west],
     [ENGLAND_BOUNDS.north, ENGLAND_BOUNDS.east],
@@ -112,7 +122,83 @@ export function createMap(container: HTMLElement, onPick: (lat: number, lng: num
   };
   legend.addTo(map);
 
-  map.on('click', (e: L.LeafletMouseEvent) => onPick(e.latlng.lat, e.latlng.lng));
+  // --- Draw-a-site control (geoman is lazy-loaded on first use, keeping it out
+  //     of the main bundle; a completed polygon feeds the same check pipeline) ---
+  let drawing = false;
+  let geomanLoaded: Promise<void> | null = null;
+
+  const pm = () => (map as unknown as { pm: GeomanDraw }).pm;
+
+  const drawButton = L.DomUtil.create('button', 'map-draw-button');
+  drawButton.type = 'button';
+  drawButton.setAttribute('aria-label', 'Draw a site boundary');
+
+  const setDrawLabel = () => {
+    drawButton.textContent = drawing ? '✕ Cancel drawing' : '▱ Draw site';
+    drawButton.title = drawing ? 'Cancel drawing' : 'Draw a site boundary — click corners, double-click to finish';
+    drawButton.classList.toggle('is-drawing', drawing);
+  };
+  setDrawLabel();
+
+  const stopDrawing = () => {
+    drawing = false;
+    setDrawLabel();
+    try {
+      pm().disableDraw();
+    } catch {
+      // geoman not loaded yet — nothing to disable
+    }
+  };
+
+  const loadGeoman = () => {
+    if (!geomanLoaded) {
+      geomanLoaded = (async () => {
+        await import('@geoman-io/leaflet-geoman-free');
+        await import('@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css');
+        // geoman wires `map.pm` from a Leaflet init hook that only runs for maps
+        // built after the plugin loads. Ours predates the lazy import, so attach
+        // the handler manually.
+        const geoman = (L as unknown as { PM?: { Map: new (m: L.Map) => GeomanDraw } }).PM;
+        const target = map as unknown as { pm?: GeomanDraw };
+        if (!target.pm && geoman) target.pm = new geoman.Map(map);
+        (map as unknown as { on(t: string, f: (e: { layer: L.Layer }) => void): void }).on('pm:create', (e) => {
+          const feature = (e.layer as unknown as { toGeoJSON(): GeoJSON.Feature }).toGeoJSON();
+          map.removeLayer(e.layer); // we render our own styled boundary via the pipeline
+          stopDrawing();
+          const geom = feature.geometry;
+          if (geom && (geom.type === 'Polygon' || geom.type === 'MultiPolygon')) onBoundary(geom);
+        });
+      })();
+    }
+    return geomanLoaded;
+  };
+
+  const startDrawing = async () => {
+    await loadGeoman();
+    drawing = true;
+    setDrawLabel();
+    pm().enableDraw('Polygon', { snappable: true, finishOn: 'dblclick' });
+  };
+
+  L.DomEvent.on(drawButton, 'click', (e) => {
+    L.DomEvent.stop(e);
+    if (drawing) stopDrawing();
+    else void startDrawing();
+  });
+
+  const drawControl = new L.Control({ position: 'topleft' });
+  drawControl.onAdd = () => {
+    const div = L.DomUtil.create('div', 'leaflet-bar map-draw-control');
+    L.DomEvent.disableClickPropagation(div);
+    div.appendChild(drawButton);
+    return div;
+  };
+  drawControl.addTo(map);
+
+  map.on('click', (e: L.LeafletMouseEvent) => {
+    if (drawing) return; // clicks are placing polygon vertices, not picking a point
+    onPick(e.latlng.lat, e.latlng.lng);
+  });
 
   // Keyboard path: the map container is focusable (Leaflet sets tabindex=0);
   // arrow keys pan and Enter checks the current centre — a click alternative.
@@ -126,6 +212,7 @@ export function createMap(container: HTMLElement, onPick: (lat: number, lng: num
 
   return {
     setPin(lat: number, lng: number) {
+      if (drawing) stopDrawing(); // a point check cancels an in-progress draw
       this.clearBoundary(); // pin and boundary are mutually exclusive markers
       if (pin) pin.remove();
       pin = L.circleMarker([lat, lng], {

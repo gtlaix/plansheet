@@ -143,12 +143,9 @@ async function runCheck(input: CheckInput): Promise<void> {
   }
 }
 
-const map = createMap(mapEl, (lat, lng) => void runCheck({ kind: 'point', lat, lng }));
-const search = createSearchPanel(
-  searchRoot,
-  (loc) => void runCheck({ kind: 'point', ...loc }),
-  (geom, label) => void runCheck({ kind: 'polygon', geom, label }),
-);
+const runBoundary = (geom: AreaGeometry, label?: string) => void runCheck({ kind: 'polygon', geom, label });
+const map = createMap(mapEl, (lat, lng) => void runCheck({ kind: 'point', lat, lng }), (geom) => runBoundary(geom));
+const search = createSearchPanel(searchRoot, (loc) => void runCheck({ kind: 'point', ...loc }), runBoundary);
 renderIdle(reportRoot);
 
 // Grey out everything outside England using the ONS `border` layer (best-effort).

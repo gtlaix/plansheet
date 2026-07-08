@@ -172,6 +172,33 @@ test('pasting a site boundary runs a polygon check, shows area and draws it', as
   await expect(page.getByRole('button', { name: 'Download JSON' })).toBeVisible();
 });
 
+test('drawing a site boundary on the map runs a polygon check', async ({ page }) => {
+  const drawBtn = page.locator('.map-draw-button');
+  await expect(drawBtn).toContainText('Draw site');
+
+  // Entering draw mode lazy-loads geoman, so the label flips asynchronously.
+  await drawBtn.click();
+  await expect(drawBtn).toContainText('Cancel drawing');
+  await expect(page.locator('#map')).toHaveClass(/geoman-draw-cursor/);
+
+  // Place four vertices, then close the ring by clicking the first vertex.
+  // A gap between clicks stops geoman reading two fast clicks as a finishing
+  // double-click. These map clicks place vertices — the guard means they must
+  // not trigger a point check (a leaked point check would render no .report-area).
+  const box = (await page.locator('#map').boundingBox())!;
+  const corners = [[160, 130], [320, 130], [320, 270], [160, 270]];
+  for (const [dx, dy] of corners) {
+    await page.mouse.click(box.x + dx, box.y + dy);
+    await page.waitForTimeout(180);
+  }
+  await page.mouse.click(box.x + 160, box.y + 130); // click first vertex to close
+
+  await page.waitForSelector('.report-area'); // a site (polygon) report, not a point
+  await expect(page.locator('.leaflet-site-boundary-pane path')).toHaveCount(1);
+  await expect(page.locator('.hit-list')).toContainText('Buckingham Palace');
+  await expect(drawBtn).toContainText('Draw site'); // draw mode ended on completion
+});
+
 test('an easting/northing boundary is rejected with a reproject message', async ({ page }) => {
   await page.locator('.boundary-import > summary').click();
   await page.fill(
