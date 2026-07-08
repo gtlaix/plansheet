@@ -1,5 +1,6 @@
 import { entityPageUrl } from '../api/planningData';
 import { CATEGORY_LABELS, classifyChecked, impactTier, TIER_LABELS } from '../datasets';
+import { formatArea } from '../geometry';
 import { DATA_GAPS } from '../dataGaps';
 import type { ReportData, ScoredHit } from '../types';
 
@@ -23,7 +24,8 @@ export function reportToMarkdown(data: ReportData): string {
   const lines: string[] = [];
 
   lines.push(`# PlanSheet — ${data.selection.label ?? coords}`, '');
-  lines.push(`- **Coordinates:** ${coords}`);
+  if (data.site) lines.push(`- **Site area:** ${formatArea(data.site.areaM2)}`);
+  lines.push(`- **${data.site ? 'Site centre' : 'Coordinates'}:** ${coords}`);
   if (data.nearestPostcode) lines.push(`- **Nearest postcode:** ${data.nearestPostcode}`);
   lines.push(`- **Generated:** ${today}`, '');
 

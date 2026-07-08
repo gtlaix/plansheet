@@ -1,5 +1,6 @@
 import { entityPageUrl } from '../api/planningData';
 import { CATEGORY_LABELS, classifyChecked, impactTier, TIER_LABELS } from '../datasets';
+import { formatArea } from '../geometry';
 import { DATA_GAPS } from '../dataGaps';
 import { reportToMarkdown } from './markdown';
 import { reportToJson } from './reportJson';
@@ -158,8 +159,9 @@ export function renderReport(root: HTMLElement, data: ReportData): void {
       el(
         'p',
         { class: 'report-meta' },
-        `${coords}${data.nearestPostcode ? ` · nearest postcode ${data.nearestPostcode}` : ''} · generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`,
+        `${data.site ? 'Site centre ' : ''}${coords}${data.nearestPostcode ? ` · nearest postcode ${data.nearestPostcode}` : ''} · generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`,
       ),
+      ...(data.site ? [el('p', { class: 'report-area' }, el('strong', {}, 'Site area: '), formatArea(data.site.areaM2))] : []),
       exportButtons(data),
     ),
   );
@@ -203,7 +205,9 @@ export function renderReport(root: HTMLElement, data: ReportData): void {
       el('ul', { class: 'hit-list', ariaLabel: 'Constraints and designations, most significant first' }, ...constraintHits.map(hitCard)),
     );
   } else {
-    constraintSection.append(el('p', {}, 'No planning constraints or designations intersect this point.'));
+    constraintSection.append(
+      el('p', {}, `No planning constraints or designations intersect this ${data.site ? 'site' : 'point'}.`),
+    );
   }
   report.append(constraintSection);
 

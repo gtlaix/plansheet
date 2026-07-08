@@ -150,6 +150,38 @@ test('British National Grid easting/northing runs a check', async ({ page }) => 
   expect(page.url()).toContain('lat=51.50');
 });
 
+test('pasting a site boundary runs a polygon check, shows area and draws it', async ({ page }) => {
+  await page.locator('.boundary-import > summary').click();
+  await page.fill(
+    '#boundary-text',
+    'POLYGON ((-0.145 51.499, -0.138 51.499, -0.138 51.504, -0.145 51.504, -0.145 51.499))',
+  );
+  await page.getByRole('button', { name: 'Check site boundary' }).click();
+
+  await page.waitForSelector('.hit-list');
+  // site area is shown, in m² and hectares
+  await expect(page.locator('.report-area')).toContainText('Site area');
+  await expect(page.locator('.report-area')).toContainText('ha');
+  // the boundary is rendered on the map in its own pane
+  await expect(page.locator('.leaflet-site-boundary-pane path')).toHaveCount(1);
+  // the geometry query still returns the ranked constraints
+  await expect(page.locator('.hit-list')).toContainText('Buckingham Palace');
+  // polygon checks drop the point ?lat= share param
+  expect(page.url()).not.toContain('lat=');
+  // JSON export still available for a polygon check
+  await expect(page.getByRole('button', { name: 'Download JSON' })).toBeVisible();
+});
+
+test('an easting/northing boundary is rejected with a reproject message', async ({ page }) => {
+  await page.locator('.boundary-import > summary').click();
+  await page.fill(
+    '#boundary-text',
+    'POLYGON ((529000 179000, 530000 179000, 530000 180000, 529000 180000, 529000 179000))',
+  );
+  await page.getByRole('button', { name: 'Check site boundary' }).click();
+  await expect(page.locator('.search-error')).toContainText('EPSG:27700');
+});
+
 test('dark mode toggle flips the theme attribute', async ({ page }) => {
   const before = await page.locator('html').getAttribute('data-theme');
   await page.click('#theme-toggle');

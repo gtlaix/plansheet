@@ -38,6 +38,9 @@ export interface MapController {
   clearOverlays(): void;
   setDark(dark: boolean): void;
   showEnglandMask(border: GeoJSON.FeatureCollection | null): void;
+  /** Render a drawn/imported site boundary and frame the map to it (SPEC-01). */
+  showBoundary(geojson: GeoJSON.Polygon | GeoJSON.MultiPolygon): void;
+  clearBoundary(): void;
 }
 
 /** A rectangle comfortably larger than the map's max bounds, for the mask's outer ring. */
@@ -89,8 +92,13 @@ export function createMap(container: HTMLElement, onPick: (lat: number, lng: num
   maskPane.style.pointerEvents = 'none';
   let mask: L.Polygon | null = null;
 
+  // The site boundary sits above the constraint overlays so it stays legible.
+  const boundaryPane = map.createPane('site-boundary');
+  boundaryPane.style.zIndex = '450';
+
   const overlayGroup = L.featureGroup().addTo(map);
   let pin: L.CircleMarker | null = null;
+  let boundary: L.GeoJSON | null = null;
   let layersControl: L.Control.Layers | null = null;
 
   // Static severity legend (key to the overlay colours).
@@ -118,6 +126,7 @@ export function createMap(container: HTMLElement, onPick: (lat: number, lng: num
 
   return {
     setPin(lat: number, lng: number) {
+      this.clearBoundary(); // pin and boundary are mutually exclusive markers
       if (pin) pin.remove();
       pin = L.circleMarker([lat, lng], {
         radius: 8,
@@ -128,6 +137,27 @@ export function createMap(container: HTMLElement, onPick: (lat: number, lng: num
       }).addTo(map);
       const targetZoom = Math.max(map.getZoom(), 15);
       map.setView([lat, lng], targetZoom);
+    },
+
+    showBoundary(geojson) {
+      this.clearBoundary();
+      if (pin) {
+        pin.remove();
+        pin = null;
+      }
+      boundary = L.geoJSON(geojson, {
+        pane: 'site-boundary',
+        style: { color: '#2563eb', weight: 3, dashArray: '6 4', fillColor: '#2563eb', fillOpacity: 0.06 },
+      }).addTo(map);
+      const bounds = boundary.getBounds();
+      if (bounds.isValid()) map.fitBounds(bounds, { maxZoom: 17, padding: [24, 24] });
+    },
+
+    clearBoundary() {
+      if (boundary) {
+        boundary.remove();
+        boundary = null;
+      }
     },
 
     showOverlays(collection, scoreBySlug, categoryBySlug) {

@@ -1,4 +1,5 @@
 import { GeocodeError, geocodePostcode } from '../api/geocode';
+import { BoundaryError, parseBoundary, type AreaGeometry } from '../geometry';
 import type { LocationSelection } from '../types';
 
 /** Small DOM helper: create element with props and children. */
@@ -35,6 +36,7 @@ function searchButton(): HTMLButtonElement {
 export function createSearchPanel(
   root: HTMLElement,
   onSelect: (loc: LocationSelection) => void,
+  onBoundary: (geom: AreaGeometry, label?: string) => void,
 ): { setBusy(busy: boolean): void } {
   const error = el('p', { class: 'search-error', role: 'alert', hidden: true });
 
@@ -121,25 +123,69 @@ export function createSearchPanel(
     });
   });
 
-  root.append(
+  // --- Site boundary: paste or upload GeoJSON / WKT (SPEC-01, story 3) ---
+  const boundaryText = el('textarea', {
+    class: 'boundary-text',
+    id: 'boundary-text',
+    rows: 4,
+    placeholder: 'Paste GeoJSON or WKT, e.g. POLYGON ((-0.14 51.5, …))',
+  });
+  const boundaryFile = el('input', {
+    type: 'file',
+    class: 'file-input',
+    id: 'boundary-file',
+    accept: '.geojson,.json,.wkt,.txt',
+  });
+  const boundaryButton = el('button', { type: 'button', class: 'button' }, 'Check site boundary');
+
+  const handleBoundary = (text: string) => {
+    clearError();
+    try {
+      onBoundary(parseBoundary(text));
+    } catch (err) {
+      showError(err instanceof BoundaryError ? err.message : 'Could not read that boundary.');
+    }
+  };
+  boundaryButton.addEventListener('click', () => handleBoundary(boundaryText.value));
+  boundaryFile.addEventListener('change', () => {
+    const file = boundaryFile.files?.[0];
+    if (!file) return;
+    void file.text().then((text) => {
+      boundaryText.value = text;
+      handleBoundary(text);
+    });
+  });
+
+  const boundarySection = el(
+    'details',
+    { class: 'boundary-import' },
+    el('summary', {}, 'Check a site boundary (polygon)'),
     el(
-      'div',
-      { class: 'search-panel' },
-      postcodeForm,
-      el('p', { class: 'search-divider' }, 'or'),
-      coordsForm,
-      el('p', { class: 'search-divider' }, 'or'),
-      bngForm,
-      error,
-      el('p', { class: 'hint' }, 'Or click anywhere on the map.'),
+      'p',
+      { class: 'hint' },
+      'Appraise a whole site, not just a point — a boundary catches constraints that clip its edge. Paste or upload GeoJSON or WKT in WGS84 longitude/latitude order.',
     ),
+    boundaryText,
+    el('div', { class: 'boundary-actions' }, boundaryFile, boundaryButton),
   );
+
+  const panel = el(
+    'div',
+    { class: 'search-panel' },
+    postcodeForm,
+    el('p', { class: 'search-divider' }, 'or'),
+    coordsForm,
+    el('p', { class: 'search-divider' }, 'or'),
+    bngForm,
+    boundarySection,
+    error,
+    el('p', { class: 'hint' }, 'Or click anywhere on the map.'),
+  );
+  root.append(panel);
 
   return {
     setBusy(busy: boolean) {
-      for (const form of [postcodeForm, coordsForm, bngForm]) {
-        for (const button of form.querySelectorAll('button')) button.disabled = busy;
-      }
+      for (const button of panel.querySelectorAll('button')) button.disabled = busy;
     },
   };
 }

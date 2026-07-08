@@ -68,6 +68,13 @@ export interface LocationSelection {
   label?: string;
 }
 
+/** A drawn/imported site boundary checked by geometry rather than a point (SPEC-01). */
+export interface SiteBoundary {
+  geojson: GeoJSON.Polygon | GeoJSON.MultiPolygon;
+  /** Site area in square metres (spherical approximation). */
+  areaM2: number;
+}
+
 /** One constraint hit, scored and ready to render. */
 export interface ScoredHit {
   entity: PlanningEntity;
@@ -83,6 +90,8 @@ export interface ScoredHit {
 /** Everything the plan sheet renders — shared by the on-screen and Markdown views. */
 export interface ReportData {
   selection: LocationSelection;
+  /** Present when the check was for a drawn/imported site boundary, not a point. */
+  site?: SiteBoundary;
   nearestPostcode: string | null;
   /** Sorted hits: administrative first, then constraints by descending impact. */
   hits: ScoredHit[];
@@ -101,6 +110,12 @@ export interface PlansheetReport {
     longitude: number;
     label: string | null;
     nearestPostcode: string | null;
+  };
+  /** Present for site-boundary (polygon) checks: the site geometry and its area. */
+  site?: {
+    areaSquareMetres: number;
+    areaHectares: number;
+    geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon;
   };
   administrative: { dataset: string; label: string; name: string; reference: string; entity: number; url: string }[];
   constraints: {

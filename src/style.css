@@ -220,6 +220,55 @@ body {
   border-radius: 4px;
 }
 
+/* Site-boundary import (SPEC-01) */
+.boundary-import {
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--ink-soft);
+  padding-top: 0.6rem;
+}
+
+.boundary-import > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.boundary-text {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  font: 0.85rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 4px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.boundary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+
+.boundary-actions .button {
+  margin-top: 0;
+}
+
+.file-input {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.report-area {
+  margin: 0.15rem 0 0;
+  color: var(--ink);
+}
+
 .text-input:focus {
   outline: 3px solid #b3d4ec;
   border-color: var(--accent);

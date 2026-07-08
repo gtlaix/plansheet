@@ -61,4 +61,25 @@ describe('reportToJson', () => {
     expect(report.couldNotCheck).toEqual(['scheduled-monument']);
     expect(report.notCovered.length).toBeGreaterThan(0);
   });
+
+  it('omits the site block for a point check but includes it for a boundary', () => {
+    expect(report.site).toBeUndefined();
+
+    const geojson: GeoJSON.Polygon = {
+      type: 'Polygon',
+      coordinates: [[[-0.145, 51.499], [-0.138, 51.499], [-0.138, 51.504], [-0.145, 51.504], [-0.145, 51.499]]],
+    };
+    const withSite = reportToJson({
+      selection: { lat: 51.5014, lng: -0.1419, label: 'Site boundary' },
+      site: { geojson, areaM2: 123456 },
+      nearestPostcode: null,
+      hits,
+      checked: buildRegistry([]),
+      failedDatasets: [],
+    });
+    expect(withSite.site).toBeDefined();
+    expect(withSite.site!.areaSquareMetres).toBe(123456);
+    expect(withSite.site!.areaHectares).toBeCloseTo(12.3456, 4);
+    expect(withSite.site!.geometry.type).toBe('Polygon');
+  });
 });

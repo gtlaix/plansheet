@@ -39,6 +39,15 @@ export function reportToJson(data: ReportData): PlansheetReport {
       label: data.selection.label ?? null,
       nearestPostcode: data.nearestPostcode,
     },
+    ...(data.site
+      ? {
+          site: {
+            areaSquareMetres: Math.round(data.site.areaM2),
+            areaHectares: Number((data.site.areaM2 / 10000).toFixed(4)),
+            geometry: data.site.geojson,
+          },
+        }
+      : {}),
     administrative: adminHits.map((h) => ({
       dataset: h.registry.slug,
       label: h.registry.label,
