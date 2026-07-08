@@ -4,6 +4,7 @@ import {
   DATASETS_PER_REQUEST,
   entityPageUrl,
   fetchAllDatasets,
+  fetchEntityGeometry,
   queryEntities,
   queryEntitiesByGeometry,
   queryGeojson,
@@ -180,5 +181,34 @@ describe('queryGeojson', () => {
 describe('entityPageUrl', () => {
   it('links to the entity page', () => {
     expect(entityPageUrl(42)).toBe('https://www.planning.data.gov.uk/entity/42');
+  });
+});
+
+describe('fetchEntityGeometry', () => {
+  const POLY: GeoJSON.Polygon = {
+    type: 'Polygon',
+    coordinates: [[[-0.14, 51.5], [-0.13, 51.5], [-0.13, 51.51], [-0.14, 51.51], [-0.14, 51.5]]],
+  };
+
+  it('extracts a polygon from a Feature response', async () => {
+    const fetchFn = vi.fn(async (url: string) => {
+      expect(url).toBe('https://www.planning.data.gov.uk/entity/301.geojson');
+      return jsonResponse({ type: 'Feature', properties: {}, geometry: POLY });
+    });
+    const geom = await fetchEntityGeometry(301, fetchFn as unknown as typeof fetch);
+    expect(geom).toEqual(POLY);
+  });
+
+  it('extracts from a FeatureCollection and returns null for non-polygons or failure', async () => {
+    const fc = vi.fn(async () =>
+      jsonResponse({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: POLY }] }),
+    );
+    expect(await fetchEntityGeometry(1, fc as unknown as typeof fetch)).toEqual(POLY);
+
+    const point = vi.fn(async () => jsonResponse({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [0, 0] } }));
+    expect(await fetchEntityGeometry(2, point as unknown as typeof fetch)).toBeNull();
+
+    const failing = vi.fn(async () => jsonResponse({}, 404));
+    expect(await fetchEntityGeometry(3, failing as unknown as typeof fetch)).toBeNull();
   });
 });

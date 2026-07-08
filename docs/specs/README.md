@@ -70,11 +70,15 @@ accept a `fetchFn` parameter for this. CI runs test + build on every push to `ma
 | 5 | [SPEC-06](SPEC-06-data-gaps-register.md) | Data-gaps register: what Planning Data does NOT cover, surfaced in every report | — (content-led; can run in parallel) |
 | 6 | [SPEC-05](SPEC-05-mcp-server.md) | MCP server exposing plansheet checks to AI assistants | SPEC-01, 03, 04 (extracts their core logic) |
 
-**Progress (2026-07-07):** SPEC-06 (data-gaps register) is shipped. SPEC-02 is partly shipped —
-the map now has a severity legend and per-category layer toggles; opacity and % site coverage
-remain (they depend on SPEC-01 polygons). SPEC-01 (draw boundary), SPEC-04 (proximity) and SPEC-05
-(MCP) are not started — SPEC-01/04 need live geometry-query verification and SPEC-05 is a larger
-architectural change, so they're best done with the maintainer in the loop.
+**Progress (2026-07-08):** SPEC-06 (data-gaps register) is shipped. **SPEC-01 (site boundary) is
+shipped** — draw on the map (geoman), paste/upload GeoJSON or WKT, or adopt a `title-boundary`
+parcel; the whole-site check queries `geometry=<WKT>&geometry_relation=intersects` and the report
+carries the site area. The geometry query is unit-tested but still needs one live pass against the
+API (see SPEC-01 "Status"). SPEC-02 is partly shipped — severity legend + per-category layer
+toggles are in; opacity and **% site coverage** are now unblocked by SPEC-01 polygons. SPEC-04
+(proximity) needs live buffer-query verification and SPEC-05 (MCP) is a larger architectural change;
+both are best done with the maintainer in the loop. The structured JSON export (SPEC-03) already
+carries the site geometry, so it's ready to feed the MCP server.
 
 Also read: [ISSUES.md](ISSUES.md) (known bugs/risks — several are quick wins) and
 [BACKLOG.md](BACKLOG.md) (further improvements, roughly prioritised).

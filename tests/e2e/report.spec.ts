@@ -12,6 +12,7 @@ const DATASETS = {
     { dataset: 'ward', name: 'Ward', typology: 'geography' },
     { dataset: 'parish', name: 'Parish', typology: 'geography' },
     { dataset: 'tree-preservation-zone', name: 'Tree preservation zone', typology: 'geography' },
+    { dataset: 'title-boundary', name: 'Title boundary', typology: 'geography' },
     { dataset: 'shiny-new-designation', name: 'Shiny new designation', typology: 'geography' },
     { dataset: 'border', name: 'Border', typology: 'geography' },
     { dataset: 'article-4-direction', name: 'Article 4 direction', typology: 'legal-instrument' },
@@ -28,7 +29,14 @@ const ENTITIES = {
     { entity: 203, name: 'Whitehall Conservation Area', dataset: 'conservation-area', reference: 'CA55', typology: 'geography', 'start-date': '1969-01-01', 'end-date': '', 'entry-date': '2024-01-01' },
     { entity: 204, name: 'Mystery Zone', dataset: 'shiny-new-designation', reference: 'X1', typology: 'geography', 'start-date': '', 'end-date': '', 'entry-date': '2024-01-01' },
     { entity: 205, name: 'England', dataset: 'border', reference: 'ENG', typology: 'geography', 'start-date': '', 'end-date': '', 'entry-date': '2024-01-01' },
+    { entity: 301, name: '', dataset: 'title-boundary', reference: 'INSPIRE-301', typology: 'geography', 'start-date': '', 'end-date': '', 'entry-date': '2024-01-01' },
   ],
+};
+
+const TITLE_GEOJSON = {
+  type: 'Feature',
+  properties: { dataset: 'title-boundary', reference: 'INSPIRE-301' },
+  geometry: { type: 'Polygon', coordinates: [[[-0.144, 51.4995], [-0.139, 51.4995], [-0.139, 51.5035], [-0.144, 51.5035], [-0.144, 51.4995]]] },
 };
 
 const GEOJSON = {
@@ -57,6 +65,7 @@ async function stubApis(page: Page): Promise<void> {
   );
   await page.route('**www.planning.data.gov.uk/dataset.json*', (route) => route.fulfill({ json: DATASETS }));
   await page.route('**www.planning.data.gov.uk/entity.json*', (route) => route.fulfill({ json: ENTITIES }));
+  await page.route('**www.planning.data.gov.uk/entity/*.geojson', (route) => route.fulfill({ json: TITLE_GEOJSON }));
   await page.route('**www.planning.data.gov.uk/entity.geojson*', (route) =>
     route.fulfill({ json: route.request().url().includes('dataset=border') ? BORDER_GEOJSON : GEOJSON }),
   );
@@ -134,6 +143,22 @@ test('a postcode generates a ranked plan sheet, admin first', async ({ page }) =
 
   // per-category layer toggle appears once overlays load
   await expect(page.locator('.leaflet-control-layers')).toContainText('Heritage');
+});
+
+test('a title boundary can be adopted as the site boundary', async ({ page }) => {
+  await page.fill('#postcode-input', 'SW1A 1AA');
+  await page.press('#postcode-input', 'Enter');
+  await page.waitForSelector('.hit-list');
+
+  // The admin section offers the registered title as a site boundary.
+  const useBtn = page.getByRole('button', { name: 'Use as site boundary' });
+  await expect(useBtn).toBeVisible();
+  await useBtn.click();
+
+  // It fetches the title geometry and re-runs as a polygon check.
+  await page.waitForSelector('.report-area');
+  await expect(page.locator('.report-sub')).toContainText('title boundary');
+  await expect(page.locator('.leaflet-site-boundary-pane path')).toHaveCount(1);
 });
 
 test('the map is keyboard-operable: Enter checks the centre', async ({ page }) => {

@@ -80,13 +80,37 @@ are > 1000).
 
 ## Acceptance criteria
 
-- [ ] Draw → check works end-to-end; drawn boundary persists on the map with the results.
-- [ ] Point flows unchanged (all existing tests pass; postcode/UPRN/coords/click still work).
-- [ ] A polygon spanning a constraint edge reports that constraint even when the polygon's
-      centroid does not intersect it (unit-test the query construction; manually verify live).
-- [ ] Pagination: mock a 2-page `entity.json` response in tests and assert both pages merge.
-- [ ] WKT/GeoJSON import round-trips (fixture files in `tests/fixtures/`), with the EPSG:27700
-      rejection message covered by a test.
-- [ ] "Use as site boundary" from a title-boundary hit re-runs the check with that parcel.
-- [ ] Simplification: a 500-vertex fixture polygon produces a query URL < 2,000 chars while the
-      displayed boundary keeps all 500 vertices.
+- [x] Draw → check works end-to-end; drawn boundary persists on the map with the results.
+      (geoman, lazy-loaded; e2e draws four vertices and asserts the site report + boundary.)
+- [x] Point flows unchanged (all existing tests pass; postcode/coords/BNG/click still work).
+- [x] A polygon spanning a constraint edge reports that constraint even when the polygon's
+      centroid does not intersect it — the query uses `geometry=<WKT>&geometry_relation=intersects`.
+      Query construction is unit-tested; **live verification still owed** (the CI sandbox can't
+      reach planning.data.gov.uk — see the maintainer verification checklist below).
+- [x] Pagination: a 2-page `entity.json` response is mocked and both pages merge
+      (`queryEntitiesByGeometry` test).
+- [x] WKT/GeoJSON import round-trips, with the EPSG:27700 rejection message covered by unit + e2e.
+- [x] "Use as site boundary" from a title-boundary hit re-runs the check with that parcel
+      (`fetchEntityGeometry` unit test + e2e).
+- [x] Simplification: a 500-vertex polygon produces a query WKT under the length budget
+      (`MAX_QUERY_WKT_CHARS = 1800`) while the displayed boundary keeps all 500 vertices.
+
+## Status — implemented 2026-07-08
+
+Shipped across four commits: (1) `src/geometry.ts` + `queryEntitiesByGeometry`/`queryGeojsonByGeometry`;
+(2) unified point/polygon check pipeline + paste/upload import; (3) draw-on-map via geoman; (4)
+adopt a `title-boundary` hit as the site. Boundaries render as a dashed outline in a dedicated
+map pane; the report/Markdown/JSON carry the site area (m² + hectares).
+
+**Owed: live verification.** The build environment cannot reach the Planning Data API, so the
+geometry query is pinned only by unit tests against the documented contract. Before relying on it:
+1. Draw a boundary straddling a known conservation-area edge; confirm that CA appears even though
+   the site centroid is outside it (edge-intersection is the whole point).
+2. Compare the displayed **site area** against a GIS measurement (spherical approx, ~0.1%).
+3. Import the same boundary as WKT and as GeoJSON; confirm identical results.
+4. On a point check, click **Use as site boundary** on the registered title and confirm the
+   re-run matches the parcel.
+
+**Deferred (were in scope, split out):** shareable polygon URLs (a BACKLOG item — polygon checks
+currently drop the `?lat=` param rather than encode the geometry); vertex editing after drawing
+(geoman supports it; not yet wired to re-run). % site coverage per constraint is SPEC-02.

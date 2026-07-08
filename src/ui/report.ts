@@ -142,7 +142,13 @@ function hitDetails(hit: ScoredHit): HTMLElement {
   );
 }
 
-export function renderReport(root: HTMLElement, data: ReportData): void {
+/** Optional interactions the host wires up (e.g. adopting a title boundary). */
+export interface ReportHandlers {
+  /** Re-run the check using an entity's geometry as the site boundary (SPEC-01). */
+  onUseAsBoundary?: (entityId: number) => void;
+}
+
+export function renderReport(root: HTMLElement, data: ReportData, handlers: ReportHandlers = {}): void {
   const adminHits = data.hits.filter((h) => h.registry.category === 'administrative');
   const constraintHits = data.hits.filter((h) => h.registry.category !== 'administrative');
 
@@ -178,14 +184,22 @@ export function renderReport(root: HTMLElement, data: ReportData): void {
           : hit.registry.slug === 'title-boundary'
             ? `Registered title (INSPIRE ${hit.entity.reference || hit.entity.entity})`
             : String(hit.entity.reference || hit.entity.entity);
-      dl.append(
-        el('dt', {}, hit.registry.label),
-        el(
-          'dd',
-          {},
-          el('a', { href: entityPageUrl(hit.entity.entity), target: '_blank', rel: 'noopener' }, text),
-        ),
+      const dd = el(
+        'dd',
+        {},
+        el('a', { href: entityPageUrl(hit.entity.entity), target: '_blank', rel: 'noopener' }, text),
       );
+      // Adopt an HM Land Registry title boundary as the site to check (SPEC-01).
+      if (hit.registry.slug === 'title-boundary' && handlers.onUseAsBoundary) {
+        const useBtn = el('button', { type: 'button', class: 'button button-secondary button-inline' }, 'Use as site boundary');
+        useBtn.addEventListener('click', () => {
+          useBtn.disabled = true;
+          useBtn.textContent = 'Loading boundary…';
+          handlers.onUseAsBoundary!(hit.entity.entity);
+        });
+        dd.append(useBtn);
+      }
+      dl.append(el('dt', {}, hit.registry.label), dd);
     }
     adminSection.append(dl);
   } else {

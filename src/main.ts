@@ -2,6 +2,7 @@ import './style.css';
 import {
   fetchAllDatasets,
   fetchBorderGeojson,
+  fetchEntityGeometry,
   queryEntities,
   queryEntitiesByGeometry,
   queryGeojson,
@@ -99,14 +100,18 @@ async function runCheck(input: CheckInput): Promise<void> {
       return;
     }
 
-    renderReport(reportRoot, {
-      selection,
-      site,
-      nearestPostcode,
-      hits: sorted,
-      checked: registry,
-      failedDatasets: result.failedDatasets,
-    });
+    renderReport(
+      reportRoot,
+      {
+        selection,
+        site,
+        nearestPostcode,
+        hits: sorted,
+        checked: registry,
+        failedDatasets: result.failedDatasets,
+      },
+      { onUseAsBoundary: useTitleBoundary },
+    );
 
     // Overlay geometries for constraint hits only (admin boundaries are noise).
     const overlaySlugs = [
@@ -140,6 +145,16 @@ async function runCheck(input: CheckInput): Promise<void> {
     }
   } finally {
     if (token === runToken) search.setBusy(false);
+  }
+}
+
+/** Adopt an entity's geometry (e.g. an HM Land Registry title) as the site. */
+async function useTitleBoundary(entityId: number): Promise<void> {
+  const geom = await fetchEntityGeometry(entityId);
+  if (geom) {
+    void runCheck({ kind: 'polygon', geom, label: 'HM Land Registry title boundary' });
+  } else {
+    renderError(reportRoot, 'Could not load that title boundary as a site — try drawing or importing it instead.');
   }
 }
 

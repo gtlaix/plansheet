@@ -333,6 +333,12 @@ body {
   background: var(--surface-2);
 }
 
+.button-inline {
+  margin: 0.25rem 0 0;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.82rem;
+}
+
 .icon-button {
   flex: 0 0 auto;
   display: inline-flex;

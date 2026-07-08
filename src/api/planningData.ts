@@ -237,6 +237,34 @@ export function entityPageUrl(entityId: number): string {
   return `${PLANNING_DATA_BASE}/entity/${entityId}`;
 }
 
+/**
+ * Fetch a single entity's geometry as GeoJSON (`/entity/{id}.geojson`) — used to
+ * adopt an HM Land Registry title boundary as the site polygon (SPEC-01, story
+ * 2). Returns null (best-effort) if the entity has no Polygon/MultiPolygon.
+ */
+export async function fetchEntityGeometry(
+  entityId: number,
+  fetchFn: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<GeoJSON.Polygon | GeoJSON.MultiPolygon | null> {
+  try {
+    const res = await fetchFn(`${PLANNING_DATA_BASE}/entity/${entityId}.geojson`, { signal });
+    if (!res.ok) throw new Error(`entity geojson returned ${res.status}`);
+    const body = (await res.json()) as GeoJSON.Feature | GeoJSON.FeatureCollection | GeoJSON.Geometry;
+    const geom =
+      body.type === 'FeatureCollection'
+        ? body.features[0]?.geometry
+        : body.type === 'Feature'
+          ? body.geometry
+          : body;
+    if (geom && (geom.type === 'Polygon' || geom.type === 'MultiPolygon')) return geom;
+    return null;
+  } catch (err) {
+    console.warn('plansheet: could not fetch entity geometry', entityId, err);
+    return null;
+  }
+}
+
 const BORDER_CACHE_KEY = 'plansheet-border-v1';
 const BORDER_CACHE_SCHEMA = 1;
 
