@@ -51,6 +51,6 @@ Ideas beyond the six specs. Each is a candidate future spec; sizes are order-of-
 16. **Monorepo hygiene after SPEC-05 (S)** — shared eslint/prettier config, `npm run check`
     running typecheck+test+lint across workspaces, CODEOWNERS for `packages/core/datasets.ts`
     (domain-sensitive file).
-17. **Overlay governance (S)** — a `docs/scoring-rationale.md` explaining every impact score in
-    consultant terms, so score changes are reviewed as domain decisions, not code tweaks.
-    The scoring model is the product's editorial voice — treat it like content.
+17. **Overlay governance (S)** — ✅ **DONE.** [`docs/scoring-rationale.md`](../scoring-rationale.md)
+    explains the tiers, base scores and per-entity modifiers in consultant terms, so score changes
+    are reviewed as domain decisions. The scoring model is the product's editorial voice.
