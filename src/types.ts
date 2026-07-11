@@ -109,6 +109,12 @@ export interface ReportData {
   };
   /** Per-entity % of the site covered (polygon checks; null = coverage n/a). */
   coverage?: Map<number, { pct: number; areaM2: number } | null>;
+  /** Present when this check re-ran a saved site: what changed since. */
+  recheck?: {
+    savedAt: string;
+    added: { entity: number; label: string; name: string }[];
+    removed: { entity: number; label: string; name: string }[];
+  };
   nearestPostcode: string | null;
   /** Sorted hits: administrative first, then constraints by descending impact. */
   hits: ScoredHit[];

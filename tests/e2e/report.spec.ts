@@ -309,6 +309,31 @@ test('the search panel collapses after a check and reopens on demand', async ({ 
   await expect(page.locator('#postcode-input')).toBeVisible();
 });
 
+test('a saved site can be re-checked and reports no changes', async ({ page }) => {
+  await page.fill('#postcode-input', 'SW1A 1AA');
+  await page.press('#postcode-input', 'Enter');
+  await page.waitForSelector('.hit-list');
+
+  await page.getByRole('button', { name: 'Save site' }).click();
+  await expect(page.getByRole('button', { name: 'Saved ✓' })).toBeVisible();
+
+  // Reopen the panel: the saved site is listed and re-checkable.
+  await page.getByRole('button', { name: 'New search' }).click();
+  await page.locator('.saved-sites > summary').click();
+  await expect(page.locator('.saved-row')).toHaveCount(1);
+  await expect(page.locator('.saved-label')).toContainText('SW1A 1AA');
+
+  await page.getByRole('button', { name: 'Re-check' }).click();
+  await page.waitForSelector('.recheck-section');
+  // Same stubbed data → the snapshot diff is clean.
+  await expect(page.locator('.recheck-clear')).toContainText('No changes since');
+
+  // Deleting empties the list.
+  await page.getByRole('button', { name: 'New search' }).click();
+  await page.locator('.remove-saved').click();
+  await expect(page.locator('.saved-row')).toHaveCount(0);
+});
+
 test('the overlay opacity slider scales the constraint layer styles', async ({ page }) => {
   await page.fill('#postcode-input', 'SW1A 1AA');
   await page.press('#postcode-input', 'Enter');

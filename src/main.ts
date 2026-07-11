@@ -22,6 +22,7 @@ import {
 } from './geometry';
 import { computeCoverage } from './coverage';
 import { scanProximity, siteFromPoint } from './proximity';
+import { diffSnapshot, saveSite, type SavedSite } from './savedSites';
 import { createMap, ENGLAND_BOUNDS } from './ui/map';
 import { createSearchPanel } from './ui/search';
 import { renderError, renderIdle, renderLoading, renderReport } from './ui/report';
@@ -54,7 +55,38 @@ let lastCheck: {
 } | null = null;
 
 function renderWithHandlers(data: ReportData): void {
-  renderReport(reportRoot, data, { onUseAsBoundary: useTitleBoundary, onScan: runScan });
+  renderReport(reportRoot, data, { onUseAsBoundary: useTitleBoundary, onScan: runScan, onSave: saveCurrentSite });
+}
+
+/** Save the last check + a constraint snapshot for later re-checking. */
+function saveCurrentSite(): void {
+  const ctx = lastCheck;
+  if (!ctx) return;
+  const { data } = ctx;
+  saveSite({
+    label: data.selection.label ?? `${data.selection.lat.toFixed(5)}, ${data.selection.lng.toFixed(5)}`,
+    location: data.site
+      ? { kind: 'site', token: encodeSite(data.site.geojson) }
+      : { kind: 'point', lat: data.selection.lat, lng: data.selection.lng },
+    snapshot: data.hits
+      .filter((h) => h.registry.category !== 'administrative')
+      .map((h) => ({ entity: h.entity.entity, label: h.registry.label, name: String(h.entity.name ?? '').trim() })),
+  });
+  search.refreshSaved();
+}
+
+/** A re-check requested from the saved list: run it, then diff the snapshot. */
+let pendingRecheck: SavedSite | null = null;
+
+function recheckSaved(saved: SavedSite): void {
+  pendingRecheck = saved;
+  if (saved.location.kind === 'point') {
+    void runCheck({ kind: 'point', lat: saved.location.lat, lng: saved.location.lng, label: saved.label });
+  } else {
+    const geom = decodeSite(saved.location.token);
+    if (geom) void runCheck({ kind: 'polygon', geom, label: saved.label });
+    else pendingRecheck = null;
+  }
 }
 
 /** Run a proximity scan around the last check and fold it into the report. */
@@ -89,6 +121,8 @@ async function runCheck(input: CheckInput): Promise<void> {
   runAbort?.abort(); // cancel the superseded run's in-flight requests (ISSUES-7)
   const abort = new AbortController();
   runAbort = abort;
+  const diffAgainst = pendingRecheck; // consume a pending saved-site re-check
+  pendingRecheck = null;
 
   // Resolve a representative point (for the pin, nearest postcode, share link)
   // and, for polygons, the site geometry + area.
@@ -158,6 +192,16 @@ async function runCheck(input: CheckInput): Promise<void> {
       hits: sorted,
       checked: registry,
       failedDatasets: result.failedDatasets,
+      ...(diffAgainst
+        ? {
+            recheck: diffSnapshot(
+              diffAgainst,
+              sorted
+                .filter((h) => h.registry.category !== 'administrative')
+                .map((h) => ({ entity: h.entity.entity, label: h.registry.label, name: String(h.entity.name ?? '').trim() })),
+            ),
+          }
+        : {}),
     };
     lastCheck = {
       token,
@@ -238,6 +282,7 @@ const search = createSearchPanel(
   (loc) => void runCheck({ kind: 'point', ...loc }),
   runBoundary,
   () => map.toggleDraw(),
+  recheckSaved,
 );
 onDrawChange = (drawing) => search.setDrawing(drawing);
 renderIdle(reportRoot);

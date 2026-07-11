@@ -24,7 +24,7 @@ function el<K extends keyof HTMLElementTagNameMap>(
 export type { ReportData } from '../types';
 
 /** Build the "Copy Markdown" / "Download .md" export buttons for a report. */
-function exportButtons(data: ReportData): HTMLElement {
+function exportButtons(data: ReportData, handlers: ReportHandlers = {}): HTMLElement {
   const copyBtn = el('button', { type: 'button', class: 'button' }, 'Copy Markdown');
   copyBtn.addEventListener('click', () => {
     void navigator.clipboard.writeText(reportToMarkdown(data)).then(
@@ -62,7 +62,14 @@ function exportButtons(data: ReportData): HTMLElement {
   const jsonBtn = el('button', { type: 'button', class: 'button button-secondary' }, 'Download JSON');
   jsonBtn.addEventListener('click', () => download('json', 'application/json', JSON.stringify(reportToJson(data), null, 2)));
 
-  return el('div', { class: 'report-actions' }, copyBtn, mdBtn, jsonBtn);
+  return el(
+    'div',
+    { class: 'report-actions' },
+    copyBtn,
+    mdBtn,
+    jsonBtn,
+    ...(handlers.onSave ? [saveButton(handlers.onSave)] : []),
+  );
 }
 
 export function renderLoading(root: HTMLElement, label: string): void {
@@ -152,6 +159,37 @@ export interface ReportHandlers {
   onUseAsBoundary?: (entityId: number) => void;
   /** Run/re-run a proximity scan with the chosen radius (SPEC-04). */
   onScan?: (radiusM: number) => Promise<void>;
+  /** Save this check (with a constraint snapshot) for later re-checking. */
+  onSave?: () => void;
+}
+
+/** What changed since the saved snapshot (shown when re-checking a saved site). */
+function recheckSection(recheck: NonNullable<ReportData['recheck']>): HTMLElement {
+  const savedDate = new Date(recheck.savedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const section = el('section', { class: 'report-section recheck-section' });
+  const { added, removed } = recheck;
+  if (added.length === 0 && removed.length === 0) {
+    section.append(el('p', { class: 'recheck-clear' }, `✓ No changes since this site was saved (${savedDate}).`));
+    return section;
+  }
+  section.append(el('h3', {}, `Changes since saved (${savedDate})`));
+  if (added.length > 0) {
+    section.append(
+      el('p', { class: 'recheck-added' }, el('strong', {}, `${added.length} new: `), added.map((a) => `${a.name || a.label} (${a.label})`).join('; ')),
+    );
+  }
+  if (removed.length > 0) {
+    section.append(
+      el(
+        'p',
+        { class: 'recheck-removed' },
+        el('strong', {}, `${removed.length} no longer returned: `),
+        removed.map((r) => `${r.name || r.label} (${r.label})`).join('; ') +
+          ' — the designation may have been withdrawn, or the record re-issued under a new identifier.',
+      ),
+    );
+  }
+  return section;
 }
 
 /** Radius selector + scan button + (when run) the nearby-constraints list. */
@@ -218,6 +256,21 @@ function proximitySection(data: ReportData, onScan: (radiusM: number) => Promise
   return section;
 }
 
+/** "Save site" button for the report actions row. */
+function saveButton(onSave: () => void): HTMLElement {
+  const btn = el('button', { type: 'button', class: 'button button-secondary' }, 'Save site');
+  btn.addEventListener('click', () => {
+    onSave();
+    btn.textContent = 'Saved ✓';
+    btn.disabled = true;
+    setTimeout(() => {
+      btn.textContent = 'Save site';
+      btn.disabled = false;
+    }, 1600);
+  });
+  return btn;
+}
+
 export function renderReport(root: HTMLElement, data: ReportData, handlers: ReportHandlers = {}): void {
   const adminHits = data.hits.filter((h) => h.registry.category === 'administrative');
   const constraintHits = data.hits.filter((h) => h.registry.category !== 'administrative');
@@ -238,9 +291,12 @@ export function renderReport(root: HTMLElement, data: ReportData, handlers: Repo
         `${data.site ? 'Site centre ' : ''}${coords}${data.nearestPostcode ? ` · nearest postcode ${data.nearestPostcode}` : ''} · generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`,
       ),
       ...(data.site ? [el('p', { class: 'report-area' }, el('strong', {}, 'Site area: '), formatArea(data.site.areaM2))] : []),
-      exportButtons(data),
+      exportButtons(data, handlers),
     ),
   );
+
+  // --- 0. Re-check diff, when this run replays a saved site ---
+  if (data.recheck) report.append(recheckSection(data.recheck));
 
   // --- 1. Administrative context ---
   const adminSection = el('section', { class: 'report-section' }, el('h3', {}, 'Administrative context'));

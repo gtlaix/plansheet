@@ -1,5 +1,6 @@
 import { GeocodeError, geocodePostcode } from '../api/geocode';
 import { BoundaryError, parseBoundary, type AreaGeometry } from '../geometry';
+import { deleteSite, loadSavedSites, type SavedSite } from '../savedSites';
 import type { LocationSelection } from '../types';
 
 /** Small DOM helper: create element with props and children. */
@@ -39,6 +40,8 @@ export interface SearchPanel {
   setDrawing(drawing: boolean): void;
   /** Fold the panel to a one-line summary after a successful check. */
   collapse(label: string): void;
+  /** Re-read the saved-sites list from storage (call after saving). */
+  refreshSaved(): void;
 }
 
 export function createSearchPanel(
@@ -46,6 +49,7 @@ export function createSearchPanel(
   onSelect: (loc: LocationSelection) => void,
   onBoundary: (geom: AreaGeometry, label?: string) => void,
   onDraw: () => void,
+  onRecheck: (saved: SavedSite) => void = () => {},
 ): SearchPanel {
   const error = el('p', { class: 'search-error', role: 'alert', hidden: true });
 
@@ -194,6 +198,41 @@ export function createSearchPanel(
     boundarySection,
   );
 
+  // --- Saved sites: re-check a stored location and diff the snapshot ---
+  const savedList = el('ul', { class: 'saved-list' });
+  const savedSection = el(
+    'details',
+    { class: 'saved-sites' },
+    el('summary', {}, 'Saved sites'),
+    savedList,
+  );
+  const refreshSaved = () => {
+    const sites = loadSavedSites();
+    savedSection.hidden = sites.length === 0;
+    savedSection.querySelector('summary')!.textContent = `Saved sites (${sites.length})`;
+    savedList.replaceChildren(
+      ...sites.map((site) => {
+        const recheckBtn = el('button', { type: 'button', class: 'button button-secondary button-inline' }, 'Re-check');
+        recheckBtn.addEventListener('click', () => onRecheck(site));
+        const removeBtn = el('button', { type: 'button', class: 'icon-button remove-saved' }, '×');
+        removeBtn.setAttribute('aria-label', `Delete saved site ${site.label}`);
+        removeBtn.addEventListener('click', () => {
+          deleteSite(site.id);
+          refreshSaved();
+        });
+        const savedDate = new Date(site.savedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        return el(
+          'li',
+          { class: 'saved-row' },
+          el('span', { class: 'saved-label' }, site.label, el('span', { class: 'saved-date' }, ` · saved ${savedDate}`)),
+          recheckBtn,
+          removeBtn,
+        );
+      }),
+    );
+  };
+  refreshSaved();
+
   const forms = el(
     'div',
     { class: 'search-forms' },
@@ -203,6 +242,7 @@ export function createSearchPanel(
     el('p', { class: 'search-divider' }, 'or'),
     bngForm,
     boundaryGroup,
+    savedSection,
     error,
     el('p', { class: 'hint' }, 'Or click anywhere on the map.'),
   );
@@ -235,5 +275,6 @@ export function createSearchPanel(
       summaryText.textContent = label;
       setCollapsed(true);
     },
+    refreshSaved,
   };
 }
