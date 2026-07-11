@@ -399,7 +399,16 @@ export function renderReport(root: HTMLElement, data: ReportData, handlers: Repo
   const details = el('details', { class: 'checked-list' });
   details.append(
     el('summary', {}, `Checked with no constraint found (${clear.length} datasets)`),
-    el('ul', {}, ...clear.map((c) => el('li', {}, c.label))),
+    el(
+      'ul',
+      {},
+      ...clear.map((c) => {
+        const freshness: string[] = [];
+        if (c.entityCount !== undefined) freshness.push(`${c.entityCount.toLocaleString('en-GB')} records`);
+        if (c.dataDate) freshness.push(`data as of ${c.dataDate}`);
+        return el('li', {}, c.label, ...(freshness.length ? [el('span', { class: 'freshness' }, ` — ${freshness.join(' · ')}`)] : []));
+      }),
+    ),
   );
   report.append(el('section', { class: 'report-section' }, details));
 

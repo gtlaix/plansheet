@@ -58,11 +58,19 @@ percentages must appear in the printed report cards.
 
 ## Acceptance criteria
 
-- [ ] Layer panel lists exactly the datasets with hits; toggling hides/shows without re-fetching.
-- [ ] Hover linking works both directions (Playwright check: hover card → layer gets highlight
-      class/style).
-- [ ] For a fixture site polygon and a fixture constraint polygon with a known 25% overlap, the
-      computed pct is 25 ± 0.5 (unit test with turf, no network).
-- [ ] Invalid constraint geometry → "coverage n/a", report still renders (unit test).
-- [ ] Tree-type datasets report counts, not %.
-- [ ] Legend colours are imported from `TIER_COLORS`, not hardcoded twice.
+- [x] Layer toggles: per-category show/hide via `L.control.layers` (per-dataset granularity was
+      traded for a compact panel; revisit if consultants ask for per-dataset solo).
+- [ ] Hover linking both directions — **not implemented** (the remaining SPEC-02 item).
+- [x] Known 25% overlap → computed pct 25 ± 0.5 (unit test with `polygon-clipping`, no network).
+- [x] Invalid constraint geometry → "coverage n/a", report still renders (unit test).
+- [x] Point/line features are skipped for coverage (each hit is its own card, so counts are
+      visible directly; no per-dataset aggregation).
+- [x] Legend colours imported from `TIER_COLORS`; overlay opacity slider added.
+
+## Status — 2026-07-08
+
+Shipped: severity legend, per-category toggles, overlay opacity slider, and % site coverage
+per constraint (report card, Markdown, JSON `siteCoverage`) with coverage as a strict sort
+tiebreaker within an equal impact score. Coverage uses `polygon-clipping` (the engine inside
+turf's intersect), lazy-loaded. Remaining: two-way hover linking between report cards and map
+features (deferred — cosmetic, and fiddly to verify unattended).

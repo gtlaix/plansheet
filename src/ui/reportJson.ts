@@ -105,7 +105,12 @@ export function reportToJson(data: ReportData): PlansheetReport {
       };
     }),
     coverageIncomplete: partialNoData.map((c) => ({ dataset: c.slug, label: c.label })),
-    checkedClear: clear.map((c) => ({ dataset: c.slug, label: c.label })),
+    checkedClear: clear.map((c) => ({
+      dataset: c.slug,
+      label: c.label,
+      ...(c.entityCount !== undefined ? { entityCount: c.entityCount } : {}),
+      ...(c.dataDate ? { dataDate: c.dataDate } : {}),
+    })),
     couldNotCheck: data.failedDatasets,
     notCovered: DATA_GAPS.map((g) => ({ topic: g.topic, why: g.why, whereToCheck: g.whereToCheck })),
     disclaimer: REPORT_DISCLAIMER,

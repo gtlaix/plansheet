@@ -70,15 +70,15 @@ accept a `fetchFn` parameter for this. CI runs test + build on every push to `ma
 | 5 | [SPEC-06](SPEC-06-data-gaps-register.md) | Data-gaps register: what Planning Data does NOT cover, surfaced in every report | — (content-led; can run in parallel) |
 | 6 | [SPEC-05](SPEC-05-mcp-server.md) | MCP server exposing plansheet checks to AI assistants | SPEC-01, 03, 04 (extracts their core logic) |
 
-**Progress (2026-07-08):** SPEC-06 (data-gaps register) is shipped. **SPEC-01 (site boundary) is
-shipped** — draw on the map (geoman), paste/upload GeoJSON or WKT, or adopt a `title-boundary`
-parcel; the whole-site check queries `geometry=<WKT>&geometry_relation=intersects` and the report
-carries the site area. The geometry query is unit-tested but still needs one live pass against the
-API (see SPEC-01 "Status"). SPEC-02 is partly shipped — severity legend + per-category layer
-toggles are in; opacity and **% site coverage** are now unblocked by SPEC-01 polygons. SPEC-04
-(proximity) needs live buffer-query verification and SPEC-05 (MCP) is a larger architectural change;
-both are best done with the maintainer in the loop. The structured JSON export (SPEC-03) already
-carries the site geometry, so it's ready to feed the MCP server.
+**Progress (2026-07-08, overnight batch 2):** SPEC-06 shipped. **SPEC-01 shipped** (draw /
+import / adopt-title boundary; shareable `?site=` links) — one live pass still owed (see its
+Status). **SPEC-04 shipped** (proximity scan with exact boundary-to-boundary distances via an
+envelope query; two live checks owed, see its Status). **SPEC-02 essentially shipped** (legend,
+category toggles, opacity slider, % site coverage with sort tiebreak); only two-way hover
+linking remains. **SPEC-03 shipped** (Markdown + versioned JSON export, now incl. site,
+coverage, nearby and dataset-freshness blocks). Also in: saved sites with re-check diff
+(BACKLOG-3) and dataset freshness (BACKLOG-10, best-effort field detection pending live
+verification). SPEC-05 (MCP) remains parked at the maintainer's request.
 
 Also read: [ISSUES.md](ISSUES.md) (known bugs/risks — several are quick wins) and
 [BACKLOG.md](BACKLOG.md) (further improvements, roughly prioritised).

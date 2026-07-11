@@ -100,6 +100,20 @@ describe('buildRegistry', () => {
     expect(reg('nuclear-safety-zone').category).toBe('hazard');
   });
 
+  it('carries entity counts and data dates through from /dataset.json', () => {
+    const api: ApiDataset[] = [
+      { dataset: 'green-belt', name: 'Green belt', typology: 'geography', 'entity-count': 12345, 'last-updated': '2026-06-01' },
+      { dataset: 'ancient-woodland', name: 'Ancient woodland', typology: 'geography' },
+    ];
+    const registry = buildRegistry(api);
+    const gb = registry.find((r) => r.slug === 'green-belt')!;
+    expect(gb.entityCount).toBe(12345);
+    expect(gb.dataDate).toBe('2026-06-01');
+    const aw = registry.find((r) => r.slug === 'ancient-woodland')!;
+    expect(aw.entityCount).toBeUndefined(); // absent fields stay absent
+    expect(aw.dataDate).toBeUndefined();
+  });
+
   it('uses site coverage only as a tiebreaker within an equal score', () => {
     const floodReg = reg('flood-risk-zone');
     const gbReg = reg('green-belt');

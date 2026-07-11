@@ -187,6 +187,8 @@ export function buildRegistry(apiDatasets: ApiDataset[]): RegistryEntry[] {
       blurb: overlay?.blurb,
       unmapped: !overlay,
       partialCoverage: overlay?.partialCoverage,
+      entityCount: typeof d['entity-count'] === 'number' ? d['entity-count'] : undefined,
+      dataDate: datasetDate(d),
     });
   }
 
@@ -216,6 +218,19 @@ export function buildRegistry(apiDatasets: ApiDataset[]): RegistryEntry[] {
 
 function titleCase(slug: string): string {
   return slug.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
+}
+
+/**
+ * Best-effort "data as of" date from a /dataset.json row. The field name has
+ * not been verified against the live API (the build sandbox can't reach it),
+ * so several plausible names are tried and absence just means no date shown.
+ */
+function datasetDate(d: ApiDataset): string | undefined {
+  for (const field of ['last-updated', 'entry-date', 'last-collection-attempt']) {
+    const value = d[field];
+    if (typeof value === 'string' && value.trim() !== '') return value.trim();
+  }
+  return undefined;
 }
 
 /** Listed building / park-and-garden grade adjustments. */

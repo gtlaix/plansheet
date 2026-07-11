@@ -317,6 +317,11 @@ a {
   font-weight: 600;
 }
 
+.freshness {
+  color: var(--ink-soft);
+  font-size: 0.85em;
+}
+
 /* Saved sites (BACKLOG-3) */
 .saved-sites {
   margin-top: 0.5rem;

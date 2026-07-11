@@ -59,6 +59,10 @@ export interface RegistryEntry {
   unmapped?: boolean;
   /** LPA-sourced dataset with incomplete national coverage: zero hits ≠ clear. */
   partialCoverage?: boolean;
+  /** From /dataset.json, when present: how many entities the platform holds. */
+  entityCount?: number;
+  /** From /dataset.json, when present: when the dataset was last updated. */
+  dataDate?: string;
 }
 
 export interface LocationSelection {
@@ -180,7 +184,7 @@ export interface PlansheetReport {
   /** LPA-sourced datasets with no hit: absence of data, NOT confirmation of no constraint. */
   coverageIncomplete: { dataset: string; label: string }[];
   /** Nationally-complete datasets with no hit — genuinely clear. */
-  checkedClear: { dataset: string; label: string }[];
+  checkedClear: { dataset: string; label: string; entityCount?: number; dataDate?: string }[];
   /** Datasets whose query failed and could not be checked. */
   couldNotCheck: string[];
   /** Constraint classes the Planning Data platform does not hold at all. */

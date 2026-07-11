@@ -5,22 +5,22 @@ Ideas beyond the six specs. Each is a candidate future spec; sizes are order-of-
 
 ## High value for consultants
 
-1. **Shareable links (S)** — encode the check in the URL (`?lat=&lng=` or compressed polygon,
-   e.g. polyline-encoded) so a colleague opens the same plan sheet. Prerequisite for most
-   collaboration features; do this early.
+1. **Shareable links (S)** — ✅ **DONE.** Point checks encode as `?lat=&lng=`; drawn/imported
+   boundaries as a compact `?site=` token (delta+varint+base64url), restored on load.
 2. **Address search (M)** — free-text address → coordinates. Options: OS Places `find` (needs
    the user's existing OS key — natural fit) or Nominatim (keyless, usage policy applies).
    Postcode-only search is the #1 onboarding friction for non-GIS users.
-3. **Saved sites & re-check alerts (M/L)** — localStorage list of saved sites; a "re-check"
-   diffs current results against the saved snapshot and highlights new/changed constraints
-   (platform data changes as LPAs submit). The diff logic belongs in `packages/core`.
+3. **Saved sites & re-check alerts (M/L)** — ✅ **DONE** (2026-07-08). localStorage saved list
+   (point or boundary + constraint snapshot); re-check diffs against the snapshot and banners
+   new / no-longer-returned constraints. Proactive alerts remain future work.
 4. **Site allocation & policy context (M)** — where `local-plan-boundary`/design-code hits
    exist, link out to the LPA's adopted policies map and show plan status; pairs with SPEC-06.
 5. **Batch checking (M)** — upload CSV of postcodes/UPRNs or a multi-feature GeoJSON → table of
    results + zipped exports. Consultants triage portfolios this way. Needs request throttling
    to stay polite to the API.
-6. **% coverage in severity ordering refinements (S)** — after SPEC-02, tune tiebreakers with
-   consultant feedback (e.g. Flood Zone 3 at 90% coverage vs Grade II at point contact).
+6. **% coverage in severity ordering refinements (S)** — ◑ **PARTLY DONE.** Coverage is now a
+   strict tiebreaker within an equal impact score; further tuning (e.g. Flood Zone 3 at 90%
+   coverage vs Grade II at point contact) awaits consultant feedback.
 7. **Entity detail drawer (S/M)** — ✅ **DONE.** Each hit has an "All fields" disclosure showing
    every raw entity field (organisation, entry-date, grade, reference…) without leaving the app.
 
@@ -32,8 +32,10 @@ Ideas beyond the six specs. Each is a candidate future spec; sizes are order-of-
    permit this with attribution.
 9. **EPSG:27700 support (S)** — ✅ **DONE.** A British National Grid easting/northing search row
    reprojects via `proj4` (lazy-loaded); verified against the SW1A 1AA control point.
-10. **Dataset freshness indicator (S)** — `/dataset.json` includes entry counts and dates;
-    show "data as of…" per dataset in the checked list and exports.
+10. **Dataset freshness indicator (S)** — ✅ **DONE** (2026-07-08, best-effort). Record counts +
+    "data as of" shown in the checked-clear list and JSON export when `/dataset.json` provides
+    them; the exact date field name (`last-updated` / `entry-date` / `last-collection-attempt`)
+    is auto-detected and needs one live confirmation.
 11. **Config-driven basemaps (S)** — ◑ **PARTLY DONE.** The tile source is now a single `BASEMAP`
     config (ISSUES-5); wiring an actual OS Maps / MapTiler provider + key is still a user decision.
 12. **Hosted MCP / HTTP API (L)** — SPEC-05 is stdio-local; a small hosted wrapper (Cloudflare
