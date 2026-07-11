@@ -310,6 +310,26 @@ a {
   border-style: dashed;
 }
 
+/* % of site covered (SPEC-02, polygon checks) */
+.hit-coverage {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* Overlay opacity slider (map control) */
+.map-opacity {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+}
+
+.opacity-slider {
+  width: 110px;
+  display: block;
+}
+
 /* Draw-a-site button (in the search panel; drawing happens on the map) */
 .boundary-group {
   display: flex;

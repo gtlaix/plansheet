@@ -322,16 +322,22 @@ export function article4Detail(entity: PlanningEntity): string | undefined {
 
 /**
  * Order hits for the plan sheet: administrative context first (stable API
- * order within), then constraints by descending impact score. Ties break
- * alphabetically by dataset label, then by entity name, so output is stable.
+ * order within), then constraints by descending impact score. Within an equal
+ * score, higher site coverage sorts first (coverage is strictly a tiebreaker —
+ * a 2% Grade I sliver must never drop below a 100% informational layer). Final
+ * ties break alphabetically by dataset label, then entity name, for stability.
  */
-export function sortHits(hits: ScoredHit[]): ScoredHit[] {
+export function sortHits(hits: ScoredHit[], coveragePct?: Map<number, number>): ScoredHit[] {
   return [...hits].sort((a, b) => {
     const aAdmin = a.registry.category === 'administrative' ? 0 : 1;
     const bAdmin = b.registry.category === 'administrative' ? 0 : 1;
     if (aAdmin !== bAdmin) return aAdmin - bAdmin;
     if (aAdmin === 0) return a.registry.label.localeCompare(b.registry.label);
     if (a.score !== b.score) return b.score - a.score;
+    if (coveragePct) {
+      const cov = (coveragePct.get(b.entity.entity) ?? 0) - (coveragePct.get(a.entity.entity) ?? 0);
+      if (cov !== 0) return cov;
+    }
     const byLabel = a.registry.label.localeCompare(b.registry.label);
     if (byLabel !== 0) return byLabel;
     return String(a.entity.name ?? '').localeCompare(String(b.entity.name ?? ''));

@@ -1,5 +1,6 @@
 import { entityPageUrl } from '../api/planningData';
 import { CATEGORY_LABELS, classifyChecked, impactTier, TIER_LABELS } from '../datasets';
+import { formatCoverage } from '../coverage';
 import { formatArea, formatDistance } from '../geometry';
 import { DEFAULT_RADIUS_M, RADIUS_PRESETS_M } from '../proximity';
 import { DATA_GAPS } from '../dataGaps';
@@ -95,7 +96,7 @@ export function entityDetailRows(entity: Record<string, unknown>): [string, stri
     .map(([k, v]) => [k.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase()), String(v)]);
 }
 
-function hitCard(hit: ScoredHit, distanceLine?: string): HTMLElement {
+function hitCard(hit: ScoredHit, distanceLine?: string, coverageLine?: string): HTMLElement {
   const tier = impactTier(hit.score);
   const name = String(hit.entity.name ?? '').trim();
   const title = name !== '' ? name : hit.entity.reference || `Entity ${hit.entity.entity}`;
@@ -119,6 +120,7 @@ function hitCard(hit: ScoredHit, distanceLine?: string): HTMLElement {
       el('a', { href: entityPageUrl(hit.entity.entity), target: '_blank', rel: 'noopener' }, title),
     ),
     el('p', { class: 'hit-dataset' }, hit.registry.label + (hit.qualifier ? ` — ${hit.qualifier}` : '')),
+    ...(coverageLine ? [el('p', { class: 'hit-coverage' }, coverageLine)] : []),
     ...(hit.registry.blurb ? [el('p', { class: 'hit-blurb' }, hit.registry.blurb)] : []),
     ...(hit.detail ? [el('p', { class: 'hit-detail' }, el('strong', {}, 'Removes: '), hit.detail)] : []),
     ...(meta.length > 0 ? [el('p', { class: 'hit-meta' }, meta.join(' · '))] : []),
@@ -284,7 +286,16 @@ export function renderReport(root: HTMLElement, data: ReportData, handlers: Repo
   if (constraintHits.length > 0) {
     constraintSection.append(
       el('p', { class: 'hint' }, 'Ordered by likely impact on the planning potential of the site, greatest first.'),
-      el('ul', { class: 'hit-list', ariaLabel: 'Constraints and designations, most significant first' }, ...constraintHits.map((h) => hitCard(h))),
+      el(
+        'ul',
+        { class: 'hit-list', ariaLabel: 'Constraints and designations, most significant first' },
+        ...constraintHits.map((h) => {
+          const cov = data.coverage?.get(h.entity.entity);
+          const line =
+            cov === undefined ? undefined : cov === null ? 'Coverage n/a (geometry could not be intersected)' : `Covers ${formatCoverage(cov)}`;
+          return hitCard(h, undefined, line);
+        }),
+      ),
     );
   } else {
     constraintSection.append(

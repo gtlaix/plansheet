@@ -125,6 +125,45 @@ export function createMap(
   let boundary: L.GeoJSON | null = null;
   let layersControl: L.Control.Layers | null = null;
 
+  // Overlay opacity: one slider scaling every constraint layer's opacity
+  // (SPEC-02). Base fill opacities are tagged per layer at creation.
+  let opacityFactor = 1;
+  const applyOpacity = (group: L.LayerGroup) => {
+    group.eachLayer((layer) => {
+      if (layer instanceof L.LayerGroup) {
+        applyOpacity(layer);
+        return;
+      }
+      const l = layer as L.Path & { _baseFill?: number };
+      if (typeof l.setStyle === 'function' && l._baseFill !== undefined) {
+        l.setStyle({
+          opacity: opacityFactor,
+          fillOpacity: Math.round(l._baseFill * opacityFactor * 1000) / 1000,
+        });
+      }
+    });
+  };
+
+  const opacityControl = new L.Control({ position: 'bottomleft' });
+  opacityControl.onAdd = () => {
+    const div = L.DomUtil.create('div', 'map-opacity');
+    const input = L.DomUtil.create('input', 'opacity-slider', div) as HTMLInputElement;
+    input.type = 'range';
+    input.min = '0.1';
+    input.max = '1';
+    input.step = '0.1';
+    input.value = '1';
+    input.setAttribute('aria-label', 'Constraint overlay opacity');
+    input.title = 'Overlay opacity';
+    L.DomEvent.disableClickPropagation(div);
+    input.addEventListener('input', () => {
+      opacityFactor = Number(input.value);
+      applyOpacity(overlayGroup);
+    });
+    return div;
+  };
+  opacityControl.addTo(map);
+
   // Static severity legend (key to the overlay colours).
   const legend = new L.Control({ position: 'bottomright' });
   legend.onAdd = () => {
@@ -275,11 +314,19 @@ export function createMap(
       const options: L.GeoJSONOptions = {
         style: (feature) => {
           const color = colourFor(feature);
-          return { color, weight: 2, fillColor: color, fillOpacity: 0.12 };
+          return { color, weight: 2, fillColor: color, opacity: opacityFactor, fillOpacity: 0.12 * opacityFactor };
         },
         pointToLayer: (feature, latlng) =>
-          L.circleMarker(latlng, { radius: 6, color: colourFor(feature), weight: 2, fillOpacity: 0.4 }),
+          L.circleMarker(latlng, {
+            radius: 6,
+            color: colourFor(feature),
+            weight: 2,
+            opacity: opacityFactor,
+            fillOpacity: 0.4 * opacityFactor,
+          }),
         onEachFeature: (feature, layer) => {
+          // Remember the un-scaled fill so the opacity slider can re-derive it.
+          (layer as L.Path & { _baseFill?: number })._baseFill = feature?.geometry?.type === 'Point' ? 0.4 : 0.12;
           const name = feature?.properties?.name || feature?.properties?.reference || '';
           const dataset = String(feature?.properties?.dataset ?? '').replace(/-/g, ' ');
           if (name || dataset) layer.bindTooltip(`${dataset}${name ? `: ${name}` : ''}`);

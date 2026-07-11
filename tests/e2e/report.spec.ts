@@ -34,10 +34,17 @@ const ENTITIES = {
   ],
 };
 
-// A SSSI ~215 m east of the SW1A 1AA fixture point, for the proximity scan.
-const NEARBY_GEOJSON = {
+// Served for geometry (polygon/envelope) queries: the on-site conservation
+// area (entity 203; covers the west half of the fixture site polygon, for the
+// coverage figure) plus a SSSI ~215 m east of the SW1A 1AA point (proximity).
+const GEOMETRY_GEOJSON = {
   type: 'FeatureCollection',
   features: [
+    {
+      type: 'Feature',
+      properties: { dataset: 'conservation-area', entity: 203, name: 'Whitehall Conservation Area', reference: 'CA55' },
+      geometry: { type: 'Polygon', coordinates: [[[-0.145, 51.499], [-0.1415, 51.499], [-0.1415, 51.504], [-0.145, 51.504], [-0.145, 51.499]]] },
+    },
     {
       type: 'Feature',
       properties: { dataset: 'site-of-special-scientific-interest', entity: 900, name: 'Test Marsh SSSI', reference: 'SSSI1' },
@@ -82,8 +89,8 @@ async function stubApis(page: Page): Promise<void> {
   await page.route('**www.planning.data.gov.uk/entity.geojson*', (route) => {
     const url = route.request().url();
     if (url.includes('dataset=border')) return route.fulfill({ json: BORDER_GEOJSON });
-    // Geometry (envelope/polygon) queries serve the proximity fixture.
-    if (url.includes('geometry=')) return route.fulfill({ json: NEARBY_GEOJSON });
+    // Geometry (envelope/polygon) queries serve the coverage/proximity fixture.
+    if (url.includes('geometry=')) return route.fulfill({ json: GEOMETRY_GEOJSON });
     return route.fulfill({ json: GEOJSON });
   });
   await page.route('**api.postcodes.io/postcodes/**', (route) =>
@@ -208,6 +215,9 @@ test('pasting a site boundary runs a polygon check, shows area and draws it', as
   await expect(page.locator('.leaflet-site-boundary-pane path')).toHaveCount(1);
   // the geometry query still returns the ranked constraints
   await expect(page.locator('.hit-list')).toContainText('Buckingham Palace');
+  // the conservation area's site-coverage figure appears on its card (SPEC-02):
+  // its fixture geometry covers the west half of the pasted site.
+  await expect(page.locator('.hit-coverage').first()).toContainText('50% of the site');
   // the boundary is encoded into a shareable ?site= link (not a point ?lat=)
   expect(page.url()).toContain('site=');
   expect(page.url()).not.toContain('lat=');
@@ -297,6 +307,20 @@ test('the search panel collapses after a check and reopens on demand', async ({ 
   await page.getByRole('button', { name: 'New search' }).click();
   await expect(page.locator('.search-forms')).toBeVisible();
   await expect(page.locator('#postcode-input')).toBeVisible();
+});
+
+test('the overlay opacity slider scales the constraint layer styles', async ({ page }) => {
+  await page.fill('#postcode-input', 'SW1A 1AA');
+  await page.press('#postcode-input', 'Enter');
+  await page.waitForSelector('.leaflet-overlay-pane path');
+
+  await page.locator('.opacity-slider').evaluate((el) => {
+    (el as HTMLInputElement).value = '0.3';
+    el.dispatchEvent(new Event('input'));
+  });
+  // The conservation-area polygon (high tier, #c2510e) is scaled; the plain
+  // location pin has no base fill and is untouched.
+  await expect(page.locator('.leaflet-overlay-pane path[stroke="#c2510e"]').first()).toHaveAttribute('stroke-opacity', '0.3');
 });
 
 test('dark mode toggle flips the theme attribute', async ({ page }) => {

@@ -1,5 +1,6 @@
 import { entityPageUrl } from '../api/planningData';
 import { CATEGORY_LABELS, classifyChecked, impactTier, TIER_LABELS } from '../datasets';
+import { formatCoverage } from '../coverage';
 import { formatArea, formatDistance } from '../geometry';
 import { DATA_GAPS } from '../dataGaps';
 import type { ReportData, ScoredHit } from '../types';
@@ -54,6 +55,10 @@ export function reportToMarkdown(data: ReportData): string {
       lines.push(`- **Impact:** ${tier} · ${CATEGORY_LABELS[hit.registry.category]}`);
       lines.push(`- **Dataset:** ${hit.registry.label}`);
       if (hit.registry.blurb) lines.push(`- ${hit.registry.blurb}`);
+      const cov = data.coverage?.get(hit.entity.entity);
+      if (cov !== undefined) {
+        lines.push(`- **Site coverage:** ${cov === null ? 'n/a (geometry could not be intersected)' : formatCoverage(cov)}`);
+      }
       if (hit.detail) lines.push(`- **Removes:** ${hit.detail}`);
       if (hit.entity.reference) lines.push(`- **Reference:** ${hit.entity.reference}`);
       if (hit.entity['start-date']) lines.push(`- **Since:** ${hit.entity['start-date']}`);

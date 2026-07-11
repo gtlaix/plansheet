@@ -20,6 +20,7 @@ import {
   wktForQuery,
   type AreaGeometry,
 } from './geometry';
+import { computeCoverage } from './coverage';
 import { scanProximity, siteFromPoint } from './proximity';
 import { createMap, ENGLAND_BOUNDS } from './ui/map';
 import { createSearchPanel } from './ui/search';
@@ -191,6 +192,17 @@ async function runCheck(input: CheckInput): Promise<void> {
       ? await queryGeojsonByGeometry(queryWkt, overlaySlugs, fetch, abort.signal)
       : await queryGeojson(point.lat, point.lng, overlaySlugs, fetch, abort.signal);
     if (token === runToken && geojson) map.showOverlays(geojson, scoreBySlug, categoryBySlug);
+
+    // Polygon checks: how much of the site does each constraint cover? (SPEC-02)
+    if (token === runToken && geojson && site) {
+      const coverage = await computeCoverage(site.geojson, geojson.features ?? []);
+      if (token === runToken && coverage.size > 0 && lastCheck?.token === token) {
+        const pctOnly = new Map([...coverage].map(([id, c]) => [id, c?.pct ?? 0]));
+        const updated: ReportData = { ...data, hits: sortHits(sorted, pctOnly), coverage };
+        lastCheck.data = updated;
+        renderWithHandlers(updated);
+      }
+    }
   } catch (err) {
     if (abort.signal.aborted) return; // superseded — the newer run owns the UI
     console.error('plansheet: check failed', err);

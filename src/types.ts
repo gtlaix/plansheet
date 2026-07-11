@@ -107,6 +107,8 @@ export interface ReportData {
     /** Datasets skipped on wide scans to keep results useful. */
     skippedDense: string[];
   };
+  /** Per-entity % of the site covered (polygon checks; null = coverage n/a). */
+  coverage?: Map<number, { pct: number; areaM2: number } | null>;
   nearestPostcode: string | null;
   /** Sorted hits: administrative first, then constraints by descending impact. */
   hits: ScoredHit[];
@@ -148,6 +150,8 @@ export interface PlansheetReport {
     startDate?: string;
     entryDate?: string;
     organisation?: string;
+    /** Polygon checks only: how much of the site this constraint covers. */
+    siteCoverage?: { percent: number; areaSquareMetres: number } | 'n/a';
   }[];
   /** Constraints near (not on) the site from a proximity scan, if one was run. */
   nearby?: {

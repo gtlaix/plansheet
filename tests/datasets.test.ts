@@ -99,6 +99,22 @@ describe('buildRegistry', () => {
     expect(reg('planning-application').category).toBe('info');
     expect(reg('nuclear-safety-zone').category).toBe('hazard');
   });
+
+  it('uses site coverage only as a tiebreaker within an equal score', () => {
+    const floodReg = reg('flood-risk-zone');
+    const gbReg = reg('green-belt');
+    const a = scoreEntity(entity('flood-risk-zone', { entity: 1, name: 'A', 'flood-risk-level': '2' }), floodReg);
+    const b = scoreEntity(entity('flood-risk-zone', { entity: 2, name: 'B', 'flood-risk-level': '2' }), floodReg);
+    const gb = scoreEntity(entity('green-belt', { entity: 3, name: 'GB' }), gbReg); // 78 > 50
+
+    // Equal scores: higher coverage first (B covers more than A).
+    const coverage = new Map([[1, 5], [2, 80], [3, 1]]);
+    const sorted = sortHits([a, b, gb], coverage);
+    expect(sorted.map((h) => h.entity.entity)).toEqual([3, 2, 1]);
+
+    // A 1%-coverage high-impact hit still beats an 80% lower-impact one:
+    expect(sorted[0].registry.slug).toBe('green-belt');
+  });
 });
 
 describe('scoreEntity modifiers', () => {

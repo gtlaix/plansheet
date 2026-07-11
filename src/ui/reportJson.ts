@@ -77,22 +77,33 @@ export function reportToJson(data: ReportData): PlansheetReport {
       entity: h.entity.entity,
       url: entityPageUrl(h.entity.entity),
     })),
-    constraints: constraintHits.map((h) => ({
-      dataset: h.registry.slug,
-      label: h.registry.label,
-      name: hitName(h),
-      reference: h.entity.reference ?? '',
-      entity: h.entity.entity,
-      url: entityPageUrl(h.entity.entity),
-      category: h.registry.category,
-      impactScore: h.score,
-      impactTier: TIER_LABELS[impactTier(h.score)],
-      qualifier: h.qualifier,
-      detail: h.detail,
-      startDate: optionalString(h.entity['start-date']),
-      entryDate: optionalString(h.entity['entry-date']),
-      organisation: optionalString(h.entity['organisation-entity']),
-    })),
+    constraints: constraintHits.map((h) => {
+      const cov = data.coverage?.get(h.entity.entity);
+      return {
+        dataset: h.registry.slug,
+        label: h.registry.label,
+        name: hitName(h),
+        reference: h.entity.reference ?? '',
+        entity: h.entity.entity,
+        url: entityPageUrl(h.entity.entity),
+        category: h.registry.category,
+        impactScore: h.score,
+        impactTier: TIER_LABELS[impactTier(h.score)],
+        qualifier: h.qualifier,
+        detail: h.detail,
+        startDate: optionalString(h.entity['start-date']),
+        entryDate: optionalString(h.entity['entry-date']),
+        organisation: optionalString(h.entity['organisation-entity']),
+        ...(cov !== undefined
+          ? {
+              siteCoverage:
+                cov === null
+                  ? ('n/a' as const)
+                  : { percent: Number(cov.pct.toFixed(1)), areaSquareMetres: Math.round(cov.areaM2) },
+            }
+          : {}),
+      };
+    }),
     coverageIncomplete: partialNoData.map((c) => ({ dataset: c.slug, label: c.label })),
     checkedClear: clear.map((c) => ({ dataset: c.slug, label: c.label })),
     couldNotCheck: data.failedDatasets,
