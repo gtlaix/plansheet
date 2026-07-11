@@ -87,11 +87,26 @@ export interface ScoredHit {
   detail?: string;
 }
 
+/** A constraint near (not on) the site, found by a proximity scan (SPEC-04). */
+export interface NearbyHit extends ScoredHit {
+  /** Minimum boundary-to-boundary distance in metres (approximate). */
+  distanceM: number;
+  /** 16-wind compass direction from the site centre, e.g. "NE". */
+  bearing: string;
+}
+
 /** Everything the plan sheet renders — shared by the on-screen and Markdown views. */
 export interface ReportData {
   selection: LocationSelection;
   /** Present when the check was for a drawn/imported site boundary, not a point. */
   site?: SiteBoundary;
+  /** Present after a proximity scan: constraints within the radius (SPEC-04). */
+  nearby?: {
+    radiusM: number;
+    hits: NearbyHit[];
+    /** Datasets skipped on wide scans to keep results useful. */
+    skippedDense: string[];
+  };
   nearestPostcode: string | null;
   /** Sorted hits: administrative first, then constraints by descending impact. */
   hits: ScoredHit[];
@@ -134,6 +149,24 @@ export interface PlansheetReport {
     entryDate?: string;
     organisation?: string;
   }[];
+  /** Constraints near (not on) the site from a proximity scan, if one was run. */
+  nearby?: {
+    radiusMetres: number;
+    skippedDatasets: string[];
+    hits: {
+      dataset: string;
+      label: string;
+      name: string;
+      entity: number;
+      url: string;
+      category: Category;
+      impactScore: number;
+      impactTier: string;
+      distanceMetres: number;
+      bearing: string;
+      qualifier?: string;
+    }[];
+  };
   /** LPA-sourced datasets with no hit: absence of data, NOT confirmation of no constraint. */
   coverageIncomplete: { dataset: string; label: string }[];
   /** Nationally-complete datasets with no hit — genuinely clear. */

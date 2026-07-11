@@ -10,11 +10,21 @@ import {
 } from './api/planningData';
 import { reverseGeocode } from './api/geocode';
 import { buildRegistry, scoreEntity, sortHits } from './datasets';
-import { areaM2, center as geomCenter, decodeSite, encodeSite, formatArea, wktForQuery, type AreaGeometry } from './geometry';
+import {
+  areaM2,
+  center as geomCenter,
+  decodeSite,
+  encodeSite,
+  formatArea,
+  formatDistance,
+  wktForQuery,
+  type AreaGeometry,
+} from './geometry';
+import { scanProximity, siteFromPoint } from './proximity';
 import { createMap, ENGLAND_BOUNDS } from './ui/map';
 import { createSearchPanel } from './ui/search';
 import { renderError, renderIdle, renderLoading, renderReport } from './ui/report';
-import type { LocationSelection, RegistryEntry, ScoredHit, SiteBoundary } from './types';
+import type { LocationSelection, RegistryEntry, ReportData, ScoredHit, SiteBoundary } from './types';
 
 const mapEl = document.getElementById('map')!;
 const searchRoot = document.getElementById('search-root')!;
@@ -33,6 +43,45 @@ type CheckInput =
 
 let runToken = 0;
 let runAbort: AbortController | null = null;
+
+/** The last successful check — what a proximity scan (SPEC-04) scans around. */
+let lastCheck: {
+  token: number;
+  data: ReportData;
+  siteGeom: AreaGeometry;
+  onSiteIds: Set<number>;
+} | null = null;
+
+function renderWithHandlers(data: ReportData): void {
+  renderReport(reportRoot, data, { onUseAsBoundary: useTitleBoundary, onScan: runScan });
+}
+
+/** Run a proximity scan around the last check and fold it into the report. */
+async function runScan(radiusM: number): Promise<void> {
+  const ctx = lastCheck;
+  if (!ctx || ctx.token !== runToken) return;
+  try {
+    const registry = await registryPromise;
+    const scan = await scanProximity(ctx.siteGeom, radiusM, registry, ctx.onSiteIds, fetch, runAbort?.signal);
+    if (ctx.token !== runToken) return; // a newer check superseded the scan
+    ctx.data = { ...ctx.data, nearby: { radiusM, hits: scan.hits, skippedDense: scan.skippedDense } };
+    renderWithHandlers(ctx.data);
+    map.showProximity(
+      scan.envelope,
+      scan.hits.map((hit, i) => {
+        const name = String(hit.entity.name ?? '').trim();
+        return {
+          feature: scan.features[i],
+          score: hit.score,
+          tooltip: `${hit.registry.label}${name ? `: ${name}` : ''} — ${formatDistance(hit.distanceM)} ${hit.bearing}`,
+        };
+      }),
+    );
+  } catch (err) {
+    if (!runAbort?.signal.aborted) console.warn('plansheet: proximity scan failed', err);
+    throw err; // the scan button resets via the rejected promise
+  }
+}
 
 async function runCheck(input: CheckInput): Promise<void> {
   const token = ++runToken;
@@ -63,6 +112,7 @@ async function runCheck(input: CheckInput): Promise<void> {
   if (site) map.showBoundary(site.geojson);
   else map.setPin(point.lat, point.lng);
   map.clearOverlays();
+  map.clearProximity();
   renderLoading(reportRoot, label);
   search.setBusy(true);
 
@@ -100,18 +150,21 @@ async function runCheck(input: CheckInput): Promise<void> {
       return;
     }
 
-    renderReport(
-      reportRoot,
-      {
-        selection,
-        site,
-        nearestPostcode,
-        hits: sorted,
-        checked: registry,
-        failedDatasets: result.failedDatasets,
-      },
-      { onUseAsBoundary: useTitleBoundary },
-    );
+    const data: ReportData = {
+      selection,
+      site,
+      nearestPostcode,
+      hits: sorted,
+      checked: registry,
+      failedDatasets: result.failedDatasets,
+    };
+    lastCheck = {
+      token,
+      data,
+      siteGeom: site ? site.geojson : siteFromPoint(point.lat, point.lng),
+      onSiteIds: new Set(sorted.map((h) => h.entity.entity)),
+    };
+    renderWithHandlers(data);
     search.collapse(label); // fold the search panel so results have room
 
     // Overlay geometries for constraint hits only (admin boundaries are noise).

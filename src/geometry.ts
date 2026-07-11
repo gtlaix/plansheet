@@ -208,6 +208,227 @@ export function center(geom: AreaGeometry): { lat: number; lng: number } {
 
 // --- Parsing & validation (import: story 3) ----------------------------------
 
+// --- Proximity: distances, bearings, search envelope (SPEC-04) ---------------
+// Distances use a local equirectangular projection centred on the site: at the
+// ≤5 km ranges the proximity scan allows, the projection error is well under
+// the generalisation error of the platform geometries themselves (distances
+// are displayed with "≈" for exactly this reason).
+
+const DEG = Math.PI / 180;
+
+/** Project [lng,lat] to local metres around a reference latitude. */
+function projector(refLatDeg: number): (pos: GeoJSON.Position) => [number, number] {
+  const cosRef = Math.cos(refLatDeg * DEG);
+  return ([lng, lat]) => [EARTH_RADIUS_M * lng * DEG * cosRef, EARTH_RADIUS_M * lat * DEG];
+}
+
+function unproject(refLatDeg: number, x: number, y: number): { lat: number; lng: number } {
+  const cosRef = Math.cos(refLatDeg * DEG);
+  return { lng: x / (EARTH_RADIUS_M * DEG * cosRef), lat: y / (EARTH_RADIUS_M * DEG) };
+}
+
+type XY = [number, number];
+
+interface Shape {
+  points: XY[];
+  /** Consecutive-vertex segments (rings and lines). Empty for point features. */
+  segments: [XY, XY][];
+  /** Projected polygon rings, for containment tests. */
+  polygons: XY[][][];
+}
+
+/** Flatten any GeoJSON geometry into projected points/segments/polygon rings. */
+function toShape(geom: GeoJSON.Geometry, project: (p: GeoJSON.Position) => XY, budget = 500): Shape {
+  const points: XY[] = [];
+  const segments: [XY, XY][] = [];
+  const polygons: XY[][][] = [];
+
+  const addLine = (line: GeoJSON.Position[]) => {
+    // Decimate very detailed lines to keep the O(n·m) distance pass fast: keep
+    // every k-th vertex plus endpoints. Skipped detail shifts the result by at
+    // most the local vertex spacing — acceptable for "≈" distances.
+    const step = Math.max(1, Math.ceil(line.length / budget));
+    const kept: XY[] = [];
+    for (let i = 0; i < line.length; i += step) kept.push(project(line[i]));
+    const last = project(line[line.length - 1]);
+    const tail = kept[kept.length - 1];
+    if (!tail || tail[0] !== last[0] || tail[1] !== last[1]) kept.push(last);
+    points.push(...kept);
+    for (let i = 0; i < kept.length - 1; i++) segments.push([kept[i], kept[i + 1]]);
+    return kept;
+  };
+
+  const walk = (g: GeoJSON.Geometry) => {
+    switch (g.type) {
+      case 'Point':
+        points.push(project(g.coordinates));
+        break;
+      case 'MultiPoint':
+        for (const p of g.coordinates) points.push(project(p));
+        break;
+      case 'LineString':
+        addLine(g.coordinates);
+        break;
+      case 'MultiLineString':
+        g.coordinates.forEach(addLine);
+        break;
+      case 'Polygon':
+        polygons.push(g.coordinates.map(addLine));
+        break;
+      case 'MultiPolygon':
+        for (const poly of g.coordinates) polygons.push(poly.map(addLine));
+        break;
+      case 'GeometryCollection':
+        g.geometries.forEach(walk);
+        break;
+    }
+  };
+  walk(geom);
+  return { points, segments, polygons };
+}
+
+/** Even-odd ray cast across every ring, so holes behave correctly. */
+function pointInPolygon(p: XY, rings: XY[][]): boolean {
+  let inside = false;
+  for (const ring of rings) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i];
+      const [xj, yj] = ring[j];
+      if (yi > p[1] !== yj > p[1] && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) {
+        inside = !inside;
+      }
+    }
+  }
+  return inside;
+}
+
+/** Nearest point to `p` on segment ab, and the squared distance to it. */
+function nearestOnSegment(p: XY, a: XY, b: XY): { q: XY; d2: number } {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2));
+  const q: XY = [a[0] + t * dx, a[1] + t * dy];
+  const ex = p[0] - q[0];
+  const ey = p[1] - q[1];
+  return { q, d2: ex * ex + ey * ey };
+}
+
+function segmentsIntersect(a: XY, b: XY, c: XY, d: XY): boolean {
+  const cross = (o: XY, p: XY, q: XY) => (p[0] - o[0]) * (q[1] - o[1]) - (p[1] - o[1]) * (q[0] - o[0]);
+  const d1 = cross(c, d, a);
+  const d2 = cross(c, d, b);
+  const d3 = cross(a, b, c);
+  const d4 = cross(a, b, d);
+  return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
+}
+
+export interface ProximityResult {
+  /** Minimum boundary-to-boundary distance in metres (0 when touching/overlapping). */
+  distanceM: number;
+  /** The nearest point on the *feature*, for bearings and map hints. */
+  nearest: { lat: number; lng: number };
+}
+
+/**
+ * Minimum distance in metres between a site geometry and a feature geometry,
+ * boundary-to-boundary (0 if they touch, cross, or one contains the other).
+ * Accurate to a few metres at proximity-scan ranges — see the projection note.
+ */
+export function minDistanceMeters(site: AreaGeometry, feature: GeoJSON.Geometry): ProximityResult {
+  const ref = center(site);
+  const project = projector(ref.lat);
+  const a = toShape(site, project);
+  const b = toShape(feature, project, 800);
+
+  const zero = (q: XY): ProximityResult => ({ distanceM: 0, nearest: unproject(ref.lat, q[0], q[1]) });
+
+  // Containment either way → touching.
+  for (const rings of b.polygons) if (a.points[0] && pointInPolygon(a.points[0], rings)) return zero(a.points[0]);
+  for (const rings of a.polygons) if (b.points[0] && pointInPolygon(b.points[0], rings)) return zero(b.points[0]);
+
+  // Crossing boundaries → touching.
+  for (const [a1, a2] of a.segments) {
+    for (const [b1, b2] of b.segments) {
+      if (segmentsIntersect(a1, a2, b1, b2)) return zero(b1);
+    }
+  }
+
+  let best = Infinity;
+  let bestQ: XY = b.points[0] ?? a.points[0] ?? [0, 0];
+  // Site vertices → feature segments (nearest point lies on the feature)…
+  for (const p of a.points) {
+    for (const [s1, s2] of b.segments) {
+      const { q, d2 } = nearestOnSegment(p, s1, s2);
+      if (d2 < best) {
+        best = d2;
+        bestQ = q;
+      }
+    }
+  }
+  // …feature vertices → site segments (nearest point is the feature vertex)…
+  for (const p of b.points) {
+    for (const [s1, s2] of a.segments) {
+      const { d2 } = nearestOnSegment(p, s1, s2);
+      if (d2 < best) {
+        best = d2;
+        bestQ = p;
+      }
+    }
+  }
+  // …and point-to-point when either side has no segments (point features).
+  if (a.segments.length === 0 || b.segments.length === 0) {
+    for (const p of a.points) {
+      for (const q of b.points) {
+        const dx = p[0] - q[0];
+        const dy = p[1] - q[1];
+        const d2 = dx * dx + dy * dy;
+        if (d2 < best) {
+          best = d2;
+          bestQ = q;
+        }
+      }
+    }
+  }
+
+  return { distanceM: Math.sqrt(best), nearest: unproject(ref.lat, bestQ[0], bestQ[1]) };
+}
+
+const COMPASS_16 = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+
+/** Compass bearing (16-wind rose) from one lat/lng to another, e.g. "NE". */
+export function compassBearing(from: { lat: number; lng: number }, to: { lat: number; lng: number }): string {
+  const x = (to.lng - from.lng) * Math.cos(((from.lat + to.lat) / 2) * DEG);
+  const y = to.lat - from.lat;
+  const deg = (Math.atan2(x, y) * 180) / Math.PI; // 0 = N, clockwise
+  return COMPASS_16[Math.round(((deg + 360) % 360) / 22.5) % 16];
+}
+
+/** "≈ 240 m" below 1 km, "≈ 1.2 km" above. */
+export function formatDistance(m: number): string {
+  if (m < 1) return 'adjacent';
+  if (m < 1000) return `≈ ${Math.round(m)} m`;
+  return `≈ ${(m / 1000).toLocaleString('en-GB', { maximumFractionDigits: 1 })} km`;
+}
+
+/**
+ * Rectangle covering everything within `radiusM` of the geometry (its bbox
+ * expanded by the radius). Used as the proximity query geometry: the API
+ * returns an envelope superset, then exact distances filter to the true
+ * radius — simpler and more honest than buffering the polygon itself.
+ */
+export function envelopeForRadius(geom: AreaGeometry, radiusM: number): AreaGeometry {
+  const [minLng, minLat, maxLng, maxLat] = bbox(geom);
+  const dLat = radiusM / (EARTH_RADIUS_M * DEG); // degrees latitude
+  const midLat = (minLat + maxLat) / 2;
+  const dLng = dLat / Math.cos(midLat * DEG);
+  const w = minLng - dLng;
+  const e = maxLng + dLng;
+  const s = minLat - dLat;
+  const n = maxLat + dLat;
+  return { type: 'Polygon', coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]] };
+}
+
 // --- Shareable polygon encoding (compact, URL-safe) --------------------------
 // A drawn/imported boundary is encoded to a base64url string so it fits in a
 // shareable `?site=` link: 1e5-scaled coordinates, delta + zigzag + varint

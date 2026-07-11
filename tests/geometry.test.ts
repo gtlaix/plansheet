@@ -4,10 +4,14 @@ import {
   bbox,
   BoundaryError,
   center,
+  compassBearing,
   decodeSite,
   encodeSite,
+  envelopeForRadius,
   formatArea,
+  formatDistance,
   MAX_QUERY_WKT_CHARS,
+  minDistanceMeters,
   parseBoundary,
   toWkt,
   wktForQuery,
@@ -130,6 +134,76 @@ describe('wktForQuery', () => {
     const simplified = parseBoundary(wktForQuery(big));
     expect(areaM2(simplified)).toBeGreaterThan(original * 0.97);
     expect(areaM2(simplified)).toBeLessThan(original * 1.03);
+  });
+});
+
+describe('minDistanceMeters', () => {
+  // Metres per degree of longitude at lat 51.5005 ≈ 69,298; 0.001443° ≈ 100 m.
+  const box = (minLng: number, maxLng: number, minLat = 51.5, maxLat = 51.501): AreaGeometry => ({
+    type: 'Polygon',
+    coordinates: [[[minLng, minLat], [maxLng, minLat], [maxLng, maxLat], [minLng, maxLat], [minLng, minLat]]],
+  });
+  const site = box(-0.144, -0.143);
+
+  it('measures a ~100 m gap boundary-to-boundary within ±5 m', () => {
+    const east = box(-0.143 + 0.001443, -0.14 + 0.001443);
+    const { distanceM } = minDistanceMeters(site, east);
+    expect(distanceM).toBeGreaterThan(95);
+    expect(distanceM).toBeLessThan(105);
+  });
+
+  it('returns 0 for overlapping and for contained geometries', () => {
+    expect(minDistanceMeters(site, box(-0.1435, -0.142)).distanceM).toBe(0); // overlap
+    expect(minDistanceMeters(site, box(-0.15, -0.13, 51.49, 51.51)).distanceM).toBe(0); // site inside feature
+    const inner: GeoJSON.Geometry = { type: 'Point', coordinates: [-0.1435, 51.5005] };
+    expect(minDistanceMeters(site, inner).distanceM).toBe(0); // point inside site
+  });
+
+  it('handles point features and reports the nearest point on the feature', () => {
+    // Point ~200 m due east of the site's east edge.
+    const pt: GeoJSON.Geometry = { type: 'Point', coordinates: [-0.143 + 0.002886, 51.5005] };
+    const { distanceM, nearest } = minDistanceMeters(site, pt);
+    expect(distanceM).toBeGreaterThan(190);
+    expect(distanceM).toBeLessThan(210);
+    expect(nearest.lng).toBeCloseTo(-0.143 + 0.002886, 5);
+  });
+
+  it('measures to a LineString (e.g. main river)', () => {
+    // Vertical line ~50 m east of the site edge.
+    const line: GeoJSON.Geometry = {
+      type: 'LineString',
+      coordinates: [[-0.143 + 0.0007215, 51.49], [-0.143 + 0.0007215, 51.51]],
+    };
+    const { distanceM } = minDistanceMeters(site, line);
+    expect(distanceM).toBeGreaterThan(45);
+    expect(distanceM).toBeLessThan(55);
+  });
+});
+
+describe('compassBearing / formatDistance', () => {
+  const from = { lat: 51.5, lng: -0.14 };
+  it('maps directions to the 16-wind rose', () => {
+    expect(compassBearing(from, { lat: 51.5, lng: -0.13 })).toBe('E');
+    expect(compassBearing(from, { lat: 51.51, lng: -0.14 })).toBe('N');
+    expect(compassBearing(from, { lat: 51.49, lng: -0.15 })).toMatch(/^S?SW|WSW$/);
+  });
+  it('formats metres and kilometres with ≈', () => {
+    expect(formatDistance(240.4)).toBe('≈ 240 m');
+    expect(formatDistance(1234)).toBe('≈ 1.2 km');
+    expect(formatDistance(0.4)).toBe('adjacent');
+  });
+});
+
+describe('envelopeForRadius', () => {
+  it('expands the bbox by the radius in both axes', () => {
+    const env = envelopeForRadius(SQUARE, 500);
+    const [minLng, minLat, maxLng, maxLat] = bbox(env);
+    const [sMinLng, sMinLat, sMaxLng, sMaxLat] = bbox(SQUARE);
+    expect((sMinLat - minLat) * 111319).toBeGreaterThan(490); // ~500 m south
+    expect((sMinLat - minLat) * 111319).toBeLessThan(510);
+    expect((maxLat - sMaxLat) * 111319).toBeGreaterThan(490);
+    expect(maxLng).toBeGreaterThan(sMaxLng);
+    expect(minLng).toBeLessThan(sMinLng);
   });
 });
 

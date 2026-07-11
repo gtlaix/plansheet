@@ -48,6 +48,27 @@ export function reportToJson(data: ReportData): PlansheetReport {
           },
         }
       : {}),
+    ...(data.nearby
+      ? {
+          nearby: {
+            radiusMetres: data.nearby.radiusM,
+            skippedDatasets: data.nearby.skippedDense,
+            hits: data.nearby.hits.map((h) => ({
+              dataset: h.registry.slug,
+              label: h.registry.label,
+              name: hitName(h),
+              entity: h.entity.entity,
+              url: entityPageUrl(h.entity.entity),
+              category: h.registry.category,
+              impactScore: h.score,
+              impactTier: TIER_LABELS[impactTier(h.score)],
+              distanceMetres: Math.round(h.distanceM),
+              bearing: h.bearing,
+              qualifier: h.qualifier,
+            })),
+          },
+        }
+      : {}),
     administrative: adminHits.map((h) => ({
       dataset: h.registry.slug,
       label: h.registry.label,

@@ -1,10 +1,11 @@
 import { entityPageUrl } from '../api/planningData';
 import { CATEGORY_LABELS, classifyChecked, impactTier, TIER_LABELS } from '../datasets';
-import { formatArea } from '../geometry';
+import { formatArea, formatDistance } from '../geometry';
+import { DEFAULT_RADIUS_M, RADIUS_PRESETS_M } from '../proximity';
 import { DATA_GAPS } from '../dataGaps';
 import { reportToMarkdown } from './markdown';
 import { reportToJson } from './reportJson';
-import type { ReportData, ScoredHit } from '../types';
+import type { NearbyHit, ReportData, ScoredHit } from '../types';
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -94,7 +95,7 @@ export function entityDetailRows(entity: Record<string, unknown>): [string, stri
     .map(([k, v]) => [k.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase()), String(v)]);
 }
 
-function hitCard(hit: ScoredHit): HTMLElement {
+function hitCard(hit: ScoredHit, distanceLine?: string): HTMLElement {
   const tier = impactTier(hit.score);
   const name = String(hit.entity.name ?? '').trim();
   const title = name !== '' ? name : hit.entity.reference || `Entity ${hit.entity.entity}`;
@@ -110,6 +111,7 @@ function hitCard(hit: ScoredHit): HTMLElement {
       { class: 'hit-head' },
       el('span', { class: `badge badge-${tier}`, ariaLabel: `Impact rating: ${TIER_LABELS[tier]}` }, TIER_LABELS[tier]),
       el('span', { class: 'category-tag' }, CATEGORY_LABELS[hit.registry.category]),
+      ...(distanceLine ? [el('span', { class: 'distance-tag' }, distanceLine)] : []),
     ),
     el(
       'h4',
@@ -146,6 +148,72 @@ function hitDetails(hit: ScoredHit): HTMLElement {
 export interface ReportHandlers {
   /** Re-run the check using an entity's geometry as the site boundary (SPEC-01). */
   onUseAsBoundary?: (entityId: number) => void;
+  /** Run/re-run a proximity scan with the chosen radius (SPEC-04). */
+  onScan?: (radiusM: number) => Promise<void>;
+}
+
+/** Radius selector + scan button + (when run) the nearby-constraints list. */
+function proximitySection(data: ReportData, onScan: (radiusM: number) => Promise<void>): HTMLElement {
+  const section = el('section', { class: 'report-section' }, el('h3', {}, 'Nearby constraints'));
+
+  const select = el('select', { class: 'radius-select', id: 'radius-select' });
+  for (const r of RADIUS_PRESETS_M) {
+    const opt = el('option', { value: String(r) }, r < 1000 ? `${r} m` : `${r / 1000} km`);
+    if (r === (data.nearby?.radiusM ?? DEFAULT_RADIUS_M)) opt.selected = true;
+    select.append(opt);
+  }
+  const scanBtn = el('button', { type: 'button', class: 'button' }, data.nearby ? 'Re-scan' : 'Scan surroundings');
+  scanBtn.addEventListener('click', () => {
+    scanBtn.disabled = true;
+    scanBtn.textContent = 'Scanning…';
+    void onScan(Number(select.value)).finally(() => {
+      scanBtn.disabled = false;
+      scanBtn.textContent = 'Re-scan';
+    });
+  });
+  section.append(
+    el(
+      'div',
+      { class: 'scan-controls' },
+      el('label', { htmlFor: 'radius-select', class: 'field-label' }, 'Within'),
+      select,
+      scanBtn,
+    ),
+  );
+
+  if (data.nearby) {
+    const { radiusM, hits, skippedDense } = data.nearby;
+    if (hits.length > 0) {
+      section.append(
+        el(
+          'p',
+          { class: 'hint' },
+          `${hits.length} constraint${hits.length === 1 ? '' : 's'} within ${radiusM < 1000 ? `${radiusM} m` : `${radiusM / 1000} km`} of the ${data.site ? 'site boundary' : 'point'} — distances are boundary-to-boundary and approximate. These are NOT on the site.`,
+        ),
+        el(
+          'ul',
+          { class: 'hit-list nearby-list', ariaLabel: 'Nearby constraints, most significant first' },
+          ...hits.map((h: NearbyHit) => hitCard(h, `${formatDistance(h.distanceM)} ${h.bearing}`)),
+        ),
+      );
+    } else {
+      section.append(el('p', {}, `No constraints found within ${radiusM} m (beyond those on the site itself).`));
+    }
+    if (skippedDense.length > 0) {
+      section.append(
+        el(
+          'p',
+          { class: 'hint' },
+          `Skipped on wide scans (too dense to be useful): ${skippedDense.map((s) => s.replace(/-/g, ' ')).join(', ')}.`,
+        ),
+      );
+    }
+  } else {
+    section.append(
+      el('p', { class: 'hint' }, 'Find constraints near the site — a nearby SSSI, listed building or ancient woodland can trigger consultation or setting arguments even when it does not touch the site.'),
+    );
+  }
+  return section;
 }
 
 export function renderReport(root: HTMLElement, data: ReportData, handlers: ReportHandlers = {}): void {
@@ -216,7 +284,7 @@ export function renderReport(root: HTMLElement, data: ReportData, handlers: Repo
   if (constraintHits.length > 0) {
     constraintSection.append(
       el('p', { class: 'hint' }, 'Ordered by likely impact on the planning potential of the site, greatest first.'),
-      el('ul', { class: 'hit-list', ariaLabel: 'Constraints and designations, most significant first' }, ...constraintHits.map(hitCard)),
+      el('ul', { class: 'hit-list', ariaLabel: 'Constraints and designations, most significant first' }, ...constraintHits.map((h) => hitCard(h))),
     );
   } else {
     constraintSection.append(
@@ -224,6 +292,9 @@ export function renderReport(root: HTMLElement, data: ReportData, handlers: Repo
     );
   }
   report.append(constraintSection);
+
+  // --- 2b. Proximity scan (SPEC-04) ---
+  if (handlers.onScan) report.append(proximitySection(data, handlers.onScan));
 
   // --- Failures, if any ---
   if (data.failedDatasets.length > 0) {

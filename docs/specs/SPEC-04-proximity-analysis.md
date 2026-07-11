@@ -59,11 +59,33 @@ on-site one.
 
 ## Acceptance criteria
 
-- [ ] Unit tests for `minDistanceMeters`: two fixture polygons with a surveyed known gap
-      (construct them ~100 m apart by coordinates) → result within ±5 m; intersecting → 0.
-- [ ] Bearing test: feature due east of site → "E".
-- [ ] Buffer query excludes on-site entity ids (unit test on the merge logic).
-- [ ] Nearby section renders sorted by impact then distance, with "≈ 240 m NE" formatting.
-- [ ] Ring + distinct nearby styling visible on the map; cleared when a new check runs.
-- [ ] 2 km scan over central London (manual live test) completes without freezing the tab and
-      respects the per-dataset cap.
+- [x] Unit tests for `minDistanceMeters`: fixture polygons with a known ~100 m gap → within
+      ±5 m; overlapping/contained → 0; point and LineString features handled.
+- [x] Bearing test: feature due east of site → "E" (16-wind rose).
+- [x] Query excludes on-site entity ids, administrative datasets, and duplicates across
+      batches (unit tests).
+- [x] Nearby section renders sorted by impact then distance, with "≈ 240 m NE" formatting,
+      clearly separated from on-site constraints ("NOT on the site").
+- [x] Scan area + dashed nearby styling on the map (dedicated pane); cleared when a new
+      check runs (e2e).
+- [ ] 2 km scan over central London (manual live test) — **owed to the maintainer**, the
+      build environment cannot reach the live API.
+
+## Status — implemented 2026-07-08 (one design change)
+
+**Envelope instead of buffer:** rather than buffering the site polygon (hard to do robustly
+without a heavy dependency), the scan queries the site's bbox expanded by the radius
+(`geometry=<envelope WKT>&geometry_relation=intersects`) and then filters by the *exact*
+computed boundary-to-boundary distance. The envelope is only ever a superset, so no feature
+within the radius is missed; distances are computed in a local equirectangular frame
+(error ≪ platform geometry generalisation at ≤ 5 km) and labelled "≈".
+
+Dense-data guard: scans > 250 m skip `transport-access-node` and `planning-application`
+(noted in the report); `title-boundary` is administrative context and is never scanned.
+Nearest 50 per dataset are kept. Radius presets 50 m–2 km. Nearby hits are exported in
+Markdown and in the JSON schema's optional `nearby` block.
+
+**Live checks owed:** (1) a 2 km central-London scan for responsiveness and sane result
+volume; (2) whether `entity.geojson` paginates on very dense envelopes — if a batch is
+silently truncated at 500 features the nearest-N claim weakens (mitigation: smaller
+batches or per-dataset scan requests).

@@ -12,6 +12,7 @@ const DATASETS = {
     { dataset: 'ward', name: 'Ward', typology: 'geography' },
     { dataset: 'parish', name: 'Parish', typology: 'geography' },
     { dataset: 'tree-preservation-zone', name: 'Tree preservation zone', typology: 'geography' },
+    { dataset: 'site-of-special-scientific-interest', name: 'Site of special scientific interest', typology: 'geography' },
     { dataset: 'title-boundary', name: 'Title boundary', typology: 'geography' },
     { dataset: 'shiny-new-designation', name: 'Shiny new designation', typology: 'geography' },
     { dataset: 'border', name: 'Border', typology: 'geography' },
@@ -30,6 +31,18 @@ const ENTITIES = {
     { entity: 204, name: 'Mystery Zone', dataset: 'shiny-new-designation', reference: 'X1', typology: 'geography', 'start-date': '', 'end-date': '', 'entry-date': '2024-01-01' },
     { entity: 205, name: 'England', dataset: 'border', reference: 'ENG', typology: 'geography', 'start-date': '', 'end-date': '', 'entry-date': '2024-01-01' },
     { entity: 301, name: '', dataset: 'title-boundary', reference: 'INSPIRE-301', typology: 'geography', 'start-date': '', 'end-date': '', 'entry-date': '2024-01-01' },
+  ],
+};
+
+// A SSSI ~215 m east of the SW1A 1AA fixture point, for the proximity scan.
+const NEARBY_GEOJSON = {
+  type: 'FeatureCollection',
+  features: [
+    {
+      type: 'Feature',
+      properties: { dataset: 'site-of-special-scientific-interest', entity: 900, name: 'Test Marsh SSSI', reference: 'SSSI1' },
+      geometry: { type: 'Polygon', coordinates: [[[-0.1385, 51.5], [-0.1375, 51.5], [-0.1375, 51.502], [-0.1385, 51.502], [-0.1385, 51.5]]] },
+    },
   ],
 };
 
@@ -66,9 +79,13 @@ async function stubApis(page: Page): Promise<void> {
   await page.route('**www.planning.data.gov.uk/dataset.json*', (route) => route.fulfill({ json: DATASETS }));
   await page.route('**www.planning.data.gov.uk/entity.json*', (route) => route.fulfill({ json: ENTITIES }));
   await page.route('**www.planning.data.gov.uk/entity/*.geojson', (route) => route.fulfill({ json: TITLE_GEOJSON }));
-  await page.route('**www.planning.data.gov.uk/entity.geojson*', (route) =>
-    route.fulfill({ json: route.request().url().includes('dataset=border') ? BORDER_GEOJSON : GEOJSON }),
-  );
+  await page.route('**www.planning.data.gov.uk/entity.geojson*', (route) => {
+    const url = route.request().url();
+    if (url.includes('dataset=border')) return route.fulfill({ json: BORDER_GEOJSON });
+    // Geometry (envelope/polygon) queries serve the proximity fixture.
+    if (url.includes('geometry=')) return route.fulfill({ json: NEARBY_GEOJSON });
+    return route.fulfill({ json: GEOJSON });
+  });
   await page.route('**api.postcodes.io/postcodes/**', (route) =>
     route.fulfill({ json: { result: { postcode: 'SW1A 1AA', latitude: 51.501009, longitude: -0.141588 } } }),
   );
@@ -239,6 +256,32 @@ test('an easting/northing boundary is rejected with a reproject message', async 
   );
   await page.getByRole('button', { name: 'Check site boundary' }).click();
   await expect(page.locator('.search-error')).toContainText('EPSG:27700');
+});
+
+test('a proximity scan lists nearby constraints with distance and bearing', async ({ page }) => {
+  await page.fill('#postcode-input', 'SW1A 1AA');
+  await page.press('#postcode-input', 'Enter');
+  await page.waitForSelector('.hit-list');
+
+  // The scan control is offered after any check.
+  await expect(page.locator('#radius-select')).toBeVisible();
+  await page.selectOption('#radius-select', '500');
+  await page.getByRole('button', { name: 'Scan surroundings' }).click();
+
+  // The nearby section renders the SSSI with an approximate distance + bearing.
+  await page.waitForSelector('.nearby-list');
+  await expect(page.locator('.nearby-list')).toContainText('Test Marsh SSSI');
+  await expect(page.locator('.nearby-list .distance-tag').first()).toHaveText(/≈ \d+ m E/);
+  await expect(page.locator('#report-root')).toContainText('NOT on the site');
+  // The scan area + nearby feature render in the proximity pane.
+  await expect(page.locator('.leaflet-proximity-pane path')).toHaveCount(2);
+  // A new check clears the scan.
+  await page.getByRole('button', { name: 'New search' }).click();
+  await page.fill('#postcode-input', 'SW1A 1AA');
+  await page.press('#postcode-input', 'Enter');
+  await page.waitForSelector('.hit-list');
+  await expect(page.locator('.leaflet-proximity-pane path')).toHaveCount(0);
+  await expect(page.locator('.nearby-list')).toHaveCount(0);
 });
 
 test('the search panel collapses after a check and reopens on demand', async ({ page }) => {

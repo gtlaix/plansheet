@@ -1,6 +1,6 @@
 import { entityPageUrl } from '../api/planningData';
 import { CATEGORY_LABELS, classifyChecked, impactTier, TIER_LABELS } from '../datasets';
-import { formatArea } from '../geometry';
+import { formatArea, formatDistance } from '../geometry';
 import { DATA_GAPS } from '../dataGaps';
 import type { ReportData, ScoredHit } from '../types';
 
@@ -64,6 +64,29 @@ export function reportToMarkdown(data: ReportData): string {
     }
   } else {
     lines.push('No planning constraints or designations intersect this point.', '');
+  }
+
+  // --- Nearby constraints (proximity scan) ---
+  if (data.nearby) {
+    const { radiusM, hits, skippedDense } = data.nearby;
+    lines.push(`## Nearby constraints (within ${radiusM < 1000 ? `${radiusM} m` : `${radiusM / 1000} km`})`, '');
+    lines.push(
+      '_Constraints near — NOT on — the site. Distances are boundary-to-boundary and approximate._',
+      '',
+    );
+    if (hits.length > 0) {
+      for (const hit of hits) {
+        const tier = TIER_LABELS[impactTier(hit.score)];
+        const qualifier = hit.qualifier ? ` — ${hit.qualifier}` : '';
+        lines.push(`- **${hitTitle(hit)}**${qualifier} (${hit.registry.label}) — ${formatDistance(hit.distanceM)} ${hit.bearing} · ${tier} · ${entityPageUrl(hit.entity.entity)}`);
+      }
+    } else {
+      lines.push('- None found beyond the constraints on the site itself.');
+    }
+    if (skippedDense.length > 0) {
+      lines.push('', `_Skipped on wide scans: ${skippedDense.join(', ')}._`);
+    }
+    lines.push('');
   }
 
   // --- Could not be checked ---

@@ -43,6 +43,12 @@ export interface MapController {
   clearBoundary(): void;
   /** Start or cancel polygon-drawing mode (the trigger lives in the search panel). */
   toggleDraw(): void;
+  /** Render a proximity scan: the scanned envelope + nearby features (SPEC-04). */
+  showProximity(
+    envelope: GeoJSON.Polygon | GeoJSON.MultiPolygon,
+    items: { feature: GeoJSON.Feature; score: number; tooltip: string }[],
+  ): void;
+  clearProximity(): void;
 }
 
 /** A rectangle comfortably larger than the map's max bounds, for the mask's outer ring. */
@@ -109,7 +115,12 @@ export function createMap(
   const boundaryPane = map.createPane('site-boundary');
   boundaryPane.style.zIndex = '450';
 
+  // Proximity-scan features sit between the overlays and the boundary.
+  const proximityPane = map.createPane('proximity');
+  proximityPane.style.zIndex = '430';
+
   const overlayGroup = L.featureGroup().addTo(map);
+  const proximityGroup = L.featureGroup().addTo(map);
   let pin: L.CircleMarker | null = null;
   let boundary: L.GeoJSON | null = null;
   let layersControl: L.Control.Layers | null = null;
@@ -229,6 +240,32 @@ export function createMap(
     toggleDraw() {
       if (drawing) stopDrawing();
       else void startDrawing();
+    },
+
+    showProximity(envelope, items) {
+      this.clearProximity();
+      // The scanned area: a subtle dashed rectangle (the envelope actually queried).
+      L.geoJSON(envelope as GeoJSON.GeoJsonObject, {
+        pane: 'proximity',
+        style: { color: '#64748b', weight: 1.5, dashArray: '2 6', fill: false },
+        interactive: false,
+      }).addTo(proximityGroup);
+      for (const { feature, score, tooltip } of items) {
+        const color = TIER_COLORS[impactTier(score)];
+        L.geoJSON(feature, {
+          pane: 'proximity',
+          style: { color, weight: 1.5, dashArray: '5 4', fillColor: color, fillOpacity: 0.05 },
+          pointToLayer: (_f, latlng) =>
+            L.circleMarker(latlng, { pane: 'proximity', radius: 5, color, weight: 1.5, dashArray: '3 3', fillOpacity: 0.2 }),
+          onEachFeature: (_f, layer) => layer.bindTooltip(tooltip),
+        }).addTo(proximityGroup);
+      }
+      const bounds = proximityGroup.getBounds();
+      if (bounds.isValid()) map.fitBounds(bounds, { padding: [16, 16] });
+    },
+
+    clearProximity() {
+      proximityGroup.clearLayers();
     },
 
     showOverlays(collection, scoreBySlug, categoryBySlug) {
