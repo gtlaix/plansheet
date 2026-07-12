@@ -99,9 +99,13 @@ export function reportToMarkdown(data: ReportData): string {
       if (app.description) lines.push(`- **Proposal:** ${app.description}`);
       const statusBits = [app.appType, app.status].filter(Boolean).join(' · ');
       if (statusBits) lines.push(`- **Type/status:** ${statusBits}`);
+      // Live data (2026-07-12): decision text/status are rarely populated but
+      // decision-date almost always is — label the date-only case honestly.
       const decisionBits = [app.decision, app.decisionType].filter(Boolean).join(' — ');
-      if (decisionBits || app.decisionDate) {
-        lines.push(`- **Decision:** ${decisionBits || 'date only'}${app.decisionDate ? ` (${app.decisionDate})` : ''}`);
+      if (decisionBits) {
+        lines.push(`- **Decision:** ${decisionBits}${app.decisionDate ? ` (${app.decisionDate})` : ''}`);
+      } else if (app.decisionDate) {
+        lines.push(`- **Decision date:** ${app.decisionDate}`);
       }
       if (app.address) lines.push(`- **Address:** ${app.address}`);
       if (app.documentationUrl) lines.push(`- **Documents:** ${app.documentationUrl}`);

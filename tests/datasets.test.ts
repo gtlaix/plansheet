@@ -134,8 +134,9 @@ describe('buildRegistry', () => {
   });
 
   it('carries entity counts and data dates through from /dataset.json', () => {
+    // entry-date is the only date field /dataset.json provides (live, 2026-07-12)
     const api: ApiDataset[] = [
-      { dataset: 'green-belt', name: 'Green belt', typology: 'geography', 'entity-count': 12345, 'last-updated': '2026-06-01' },
+      { dataset: 'green-belt', name: 'Green belt', typology: 'geography', 'entity-count': 12345, 'entry-date': '2026-06-01' },
       { dataset: 'ancient-woodland', name: 'Ancient woodland', typology: 'geography' },
     ];
     const registry = buildRegistry(api);

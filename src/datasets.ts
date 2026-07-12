@@ -221,16 +221,14 @@ function titleCase(slug: string): string {
 }
 
 /**
- * Best-effort "data as of" date from a /dataset.json row. The field name has
- * not been verified against the live API (the build sandbox can't reach it),
- * so several plausible names are tried and absence just means no date shown.
+ * Best-effort "data as of" date from a /dataset.json row. Verified live
+ * 2026-07-12: `entry-date` is the only date field the API provides (present on
+ * ~17% of geography datasets; `last-updated`/`last-collection-attempt` do not
+ * exist). Absence just means no date is shown — counts are always available.
  */
 function datasetDate(d: ApiDataset): string | undefined {
-  for (const field of ['last-updated', 'entry-date', 'last-collection-attempt']) {
-    const value = d[field];
-    if (typeof value === 'string' && value.trim() !== '') return value.trim();
-  }
-  return undefined;
+  const value = d['entry-date'];
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
 }
 
 /** Listed building / park-and-garden grade adjustments. */

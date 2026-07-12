@@ -102,8 +102,11 @@ Shipped across four commits: (1) `src/geometry.ts` + `queryEntitiesByGeometry`/`
 adopt a `title-boundary` hit as the site. Boundaries render as a dashed outline in a dedicated
 map pane; the report/Markdown/JSON carry the site area (m² + hectares).
 
-**Owed: live verification.** The build environment cannot reach the Planning Data API, so the
-geometry query is pinned only by unit tests against the documented contract. Before relying on it:
+**Live findings (2026-07-12, maintainer debug run):** the API accepted a 4,231-char WKT
+geometry query (URL ~5.5k) and failed around 8.4k, so the simplification budget was raised
+1,800 → 3,500 chars (better boundary fidelity, ~½ headroom). The edge-straddling test was
+inconclusive on the first tool run (concave boundary defeated the auto-placed control
+point); tool v2 searches multiple vertices. Still owed before full sign-off:
 1. Draw a boundary straddling a known conservation-area edge; confirm that CA appears even though
    the site centroid is outside it (edge-intersection is the whole point).
 2. Compare the displayed **site area** against a GIS measurement (spherical approx, ~0.1%).

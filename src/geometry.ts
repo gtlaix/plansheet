@@ -10,8 +10,12 @@
 
 export type AreaGeometry = GeoJSON.Polygon | GeoJSON.MultiPolygon;
 
-/** WKT sent as a GET query param must stay well under typical URL limits. */
-export const MAX_QUERY_WKT_CHARS = 1800;
+/**
+ * WKT sent as a GET query param must stay well under the API's URL limit.
+ * Verified live 2026-07-12: a 4,231-char WKT (URL ~5.5k) was accepted and
+ * ~8.4k failed, so 3,500 keeps ~½ headroom while preserving boundary detail.
+ */
+export const MAX_QUERY_WKT_CHARS = 3500;
 
 /** Coordinates rounded to 6 dp (~0.1 m) — plenty for a planning boundary. */
 const QUERY_DP = 6;

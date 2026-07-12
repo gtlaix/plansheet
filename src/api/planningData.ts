@@ -218,6 +218,14 @@ export async function queryGeojsonByGeometry(
   return collectGeojson(slugs, (batch) => geometryUrl('/entity.geojson', wkt, batch), fetchFn, signal);
 }
 
+/**
+ * entity.geojson pages at 500 features and carries no `links` — verified live
+ * 2026-07-12 (a 2 km central-London envelope held 3,886 listed buildings but
+ * one response returned 500). Pages are walked via `offset` up to this cap.
+ */
+export const GEOJSON_MAX_PAGES = 6;
+const GEOJSON_PAGE_SIZE = 500;
+
 async function collectGeojson(
   slugs: string[],
   buildUrl: (batch: string[]) => string,
@@ -228,14 +236,32 @@ async function collectGeojson(
   try {
     const collections = await Promise.all(
       chunk(slugs, DATASETS_PER_REQUEST).map(async (batch) => {
-        const res = await fetchFn(buildUrl(batch), { signal });
-        if (!res.ok) throw new Error(`entity.geojson returned ${res.status}`);
-        return (await res.json()) as GeoJSON.FeatureCollection;
+        const features: GeoJSON.Feature[] = [];
+        let prevFirstId: unknown;
+        for (let page = 0; page < GEOJSON_MAX_PAGES; page++) {
+          const offset = page * GEOJSON_PAGE_SIZE;
+          const url = buildUrl(batch) + (offset > 0 ? `&offset=${offset}` : '');
+          const res = await fetchFn(url, { signal });
+          if (!res.ok) throw new Error(`entity.geojson returned ${res.status}`);
+          const fc = (await res.json()) as GeoJSON.FeatureCollection;
+          const pageFeatures = fc.features ?? [];
+          // If the server ignored `offset` it would replay page 1 — stop
+          // rather than duplicate forever.
+          const firstId = pageFeatures[0]?.properties?.entity;
+          if (page > 0 && firstId !== undefined && firstId === prevFirstId) break;
+          prevFirstId = firstId;
+          features.push(...pageFeatures);
+          if (pageFeatures.length < GEOJSON_PAGE_SIZE) break;
+          if (page === GEOJSON_MAX_PAGES - 1) {
+            console.warn('plansheet: geojson pagination cap reached for', batch);
+          }
+        }
+        return features;
       }),
     );
     return {
       type: 'FeatureCollection',
-      features: collections.flatMap((c) => c.features ?? []),
+      features: collections.flat(),
     };
   } catch (err) {
     console.warn('plansheet: geojson fetch failed (map overlay skipped)', err);

@@ -158,18 +158,22 @@
             const id = feat.properties.entity;
             const geom = feat.geometry;
             const ring = (geom.type === 'Polygon' ? geom.coordinates[0] : geom.coordinates[0][0]);
-            // centroid (vertex average) and a boundary vertex
+            // centroid (vertex average); then search MANY boundary vertices for
+            // one where stepping outward lands outside (concave boundaries can
+            // defeat any single vertex — v2 fix after the first live run).
             let cx = 0, cy = 0; for (const [x, y] of ring) { cx += x; cy += y; } cx /= ring.length; cy /= ring.length;
-            const v = ring[Math.floor(ring.length / 2)];
-            // walk outward from the boundary vertex until the rect centre is outside
-            const dirX = v[0] - cx, dirY = v[1] - cy;
-            const len = Math.hypot(dirX, dirY) || 1;
             let centre = null;
-            for (const stepM of [20, 40, 80, 160]) {
-              const c = [v[0] + (dirX / len) * degLng(stepM, v[1]), v[1] + (dirY / len) * degLat(stepM)];
-              if (!pointInPolygon(c, geom)) { centre = c; break; }
+            outer:
+            for (let s = 0; s < 16; s++) {
+              const cand = ring[Math.floor((s / 16) * ring.length)];
+              const dirX = cand[0] - cx, dirY = cand[1] - cy;
+              const len = Math.hypot(dirX, dirY) || 1;
+              for (const stepM of [20, 40, 80, 160]) {
+                const c = [cand[0] + (dirX / len) * degLng(stepM, cand[1]), cand[1] + (dirY / len) * degLat(stepM)];
+                if (!pointInPolygon(c, geom)) { centre = c; break outer; }
+              }
             }
-            if (!centre) return { status: 'warn', detail: `Could not place a test centre outside CA ${id} (concave boundary) — try a different area.` };
+            if (!centre) return { status: 'warn', detail: `Could not place a test centre outside CA ${id} even after searching 16 boundary vertices — try re-running from a different browser location.` };
             // rectangle big enough to reach back across the boundary vertex
             const half = 200;
             const wkt = rectWkt(centre[0] - degLng(half, centre[1]), centre[1] - degLat(half), centre[0] + degLng(half, centre[1]), centre[1] + degLat(half));
@@ -253,16 +257,45 @@
         {
           id: 'title', title: '7 · title-boundary /entity/{id}.geojson shape (Use-as-site-boundary)',
           run: async () => {
-            const body = await getJson(`${API}/entity.json?latitude=51.501009&longitude=-0.141588&dataset=title-boundary&limit=1`);
-            const ent = (body.entities ?? [])[0];
-            if (!ent) return { status: 'warn', detail: 'No registered title at the control point; try re-running near a residential address.' };
+            // The Palace is Crown land with no registered title (v1 finding) —
+            // try residential control points until one has a title.
+            const points = [
+              [51.4650, -0.1350, 'Clapham'], [52.2050, 0.1310, 'Cambridge'],
+              [53.3810, -1.4700, 'Sheffield'], [51.4540, -2.5880, 'Bristol'],
+            ];
+            let ent = null, where = '';
+            for (const [lat, lng, label] of points) {
+              const body = await getJson(`${API}/entity.json?latitude=${lat}&longitude=${lng}&dataset=title-boundary&limit=1`);
+              ent = (body.entities ?? [])[0];
+              if (ent) { where = label; break; }
+              await sleep(300);
+            }
+            if (!ent) return { status: 'warn', detail: 'No registered title found at any of the four residential control points — unexpected; paste this to Claude.' };
             await sleep(300);
             const gj = await getJson(`${API}/entity/${ent.entity}.geojson`);
             const shape = gj.type === 'FeatureCollection' ? `FeatureCollection(${(gj.features ?? []).length})` : gj.type;
             const geomType = gj.type === 'FeatureCollection' ? gj.features?.[0]?.geometry?.type : gj.type === 'Feature' ? gj.geometry?.type : gj.type;
             const ok = geomType === 'Polygon' || geomType === 'MultiPolygon';
             return { status: ok ? 'pass' : 'fail',
-              detail: `entity ${ent.entity} → response type: ${shape} · geometry: ${geomType}\n→ PlanSheet handles Feature, FeatureCollection and bare geometries; ${ok ? 'compatible.' : 'NOT a polygon — paste this to Claude.'}` };
+              detail: `entity ${ent.entity} (near ${where}) → response type: ${shape} · geometry: ${geomType}\n→ PlanSheet handles Feature, FeatureCollection and bare geometries; ${ok ? 'compatible.' : 'NOT a polygon — paste this to Claude.'}` };
+          },
+        },
+        // ---- 8. entity.geojson offset pagination (the truncation fix) ----
+        {
+          id: 'offset', title: '8 · entity.geojson honours ?offset= (verifies the pagination fix)',
+          run: async () => {
+            const lat = 51.5074, lng = -0.1278, r = 2000;
+            const wkt = rectWkt(lng - degLng(r, lat), lat - degLat(r), lng + degLng(r, lat), lat + degLat(r));
+            const g = encodeURIComponent(wkt);
+            const p1 = await getJson(`${API}/entity.geojson?geometry=${g}&geometry_relation=intersects&dataset=listed-building&limit=500`);
+            await sleep(300);
+            const p2 = await getJson(`${API}/entity.geojson?geometry=${g}&geometry_relation=intersects&dataset=listed-building&limit=500&offset=500`);
+            const id1 = p1.features?.[0]?.properties?.entity;
+            const id2 = p2.features?.[0]?.properties?.entity;
+            const n2 = (p2.features ?? []).length;
+            const works = n2 > 0 && id1 !== id2;
+            return { status: works ? 'pass' : 'fail',
+              detail: `page 1 first entity: ${id1} (${(p1.features ?? []).length} features)\npage 2 (offset=500) first entity: ${id2} (${n2} features)\n→ ${works ? 'offset returns a different page: PlanSheet\'s paginated proximity/overlay fetches will see past 500 features.' : 'offset was ignored or empty — PlanSheet\'s replay guard will stop at 500; paste this to Claude.'}` };
           },
         },
       ];

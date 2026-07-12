@@ -336,6 +336,15 @@ function proximitySection(data: ReportData, onScan: (radiusM: number) => Promise
         ),
       );
     }
+    if (radiusM >= 1000) {
+      section.append(
+        el(
+          'p',
+          { class: 'hint' },
+          'Wide scans in very dense areas (city centres) may show the nearest features only — narrow the radius for exhaustive coverage.',
+        ),
+      );
+    }
   } else {
     section.append(
       el('p', { class: 'hint' }, 'Find constraints near the site — a nearby SSSI, listed building or ancient woodland can trigger consultation or setting arguments even when it does not touch the site.'),

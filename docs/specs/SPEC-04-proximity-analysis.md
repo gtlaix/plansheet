@@ -85,7 +85,10 @@ Dense-data guard: scans > 250 m skip `transport-access-node` and `planning-appli
 Nearest 50 per dataset are kept. Radius presets 50 m–2 km. Nearby hits are exported in
 Markdown and in the JSON schema's optional `nearby` block.
 
-**Live checks owed:** (1) a 2 km central-London scan for responsiveness and sane result
-volume; (2) whether `entity.geojson` paginates on very dense envelopes — if a batch is
-silently truncated at 500 features the nearest-N claim weakens (mitigation: smaller
-batches or per-dataset scan requests).
+**Live findings (2026-07-12, maintainer debug run):** a 2 km central-London envelope held
+3,886 listed buildings and `entity.geojson` returned exactly 500 with no `links` —
+truncation confirmed. Fixed the same day: geojson fetches now walk `offset` pages (500 per
+page, capped at 6 pages per batch, with a replay guard in case a server ever ignores
+`offset`). The UI notes that ≥1 km scans in very dense areas may still show nearest
+features only. Remaining live check: a 2 km scan responsiveness sanity-pass in the app
+itself.

@@ -161,6 +161,12 @@ describe('queryEntitiesByGeometry', () => {
 });
 
 describe('queryGeojson', () => {
+  const feat = (entity: number): GeoJSON.Feature => ({
+    type: 'Feature',
+    properties: { dataset: 'listed-building', entity },
+    geometry: { type: 'Point', coordinates: [0, 0] },
+  });
+
   it('returns a merged FeatureCollection', async () => {
     const fetchFn = vi.fn(async () =>
       jsonResponse({
@@ -170,6 +176,31 @@ describe('queryGeojson', () => {
     );
     const fc = await queryGeojson(51.5, -0.1, ['green-belt'], fetchFn as unknown as typeof fetch);
     expect(fc?.features).toHaveLength(1);
+  });
+
+  it('walks offset pages when a response is full (500 features)', async () => {
+    // Verified live 2026-07-12: entity.geojson pages at 500 with no links.
+    const urls: string[] = [];
+    const fetchFn = vi.fn(async (url: string) => {
+      urls.push(url);
+      if (url.includes('offset=500')) {
+        return jsonResponse({ type: 'FeatureCollection', features: [feat(9000)] });
+      }
+      return jsonResponse({ type: 'FeatureCollection', features: Array.from({ length: 500 }, (_, i) => feat(i)) });
+    });
+    const fc = await queryGeojson(51.5, -0.1, ['listed-building'], fetchFn as unknown as typeof fetch);
+    expect(urls).toHaveLength(2);
+    expect(urls[1]).toContain('offset=500');
+    expect(fc?.features).toHaveLength(501);
+  });
+
+  it('stops if the server ignores offset and replays the same page', async () => {
+    const fetchFn = vi.fn(async () =>
+      jsonResponse({ type: 'FeatureCollection', features: Array.from({ length: 500 }, (_, i) => feat(i)) }),
+    );
+    const fc = await queryGeojson(51.5, -0.1, ['listed-building'], fetchFn as unknown as typeof fetch);
+    expect(fetchFn).toHaveBeenCalledTimes(2); // page 2 replayed page 1 → stop
+    expect(fc?.features).toHaveLength(500); // no duplicates appended
   });
 
   it('returns null for no datasets or on failure', async () => {
