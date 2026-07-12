@@ -598,7 +598,11 @@ a {
   margin: 0;
 }
 
-.hit-list {
+/* Constraint, nearby and planning-history card lists share one layout; the
+   classes stay distinct so tests and scripts can target each unambiguously. */
+.hit-list,
+.nearby-list,
+.app-list {
   list-style: none;
   margin: 0;
   padding: 0;

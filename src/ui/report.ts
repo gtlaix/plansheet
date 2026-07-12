@@ -240,7 +240,7 @@ function proximitySection(data: ReportData, onScan: (radiusM: number) => Promise
         ),
         el(
           'ul',
-          { class: 'hit-list nearby-list', ariaLabel: 'Nearby constraints, most significant first' },
+          { class: 'nearby-list', ariaLabel: 'Nearby constraints, most significant first' },
           ...hits.map((h: NearbyHit) => hitCard(h, `${formatDistance(h.distanceM)} ${h.bearing}`)),
         ),
       );
@@ -425,7 +425,7 @@ export function renderReport(root: HTMLElement, data: ReportData, handlers: Repo
           { class: 'hint' },
           'Applications recorded on the Planning Data platform for this location, newest first. Only some LPAs publish applications here — this is NOT a complete planning history; verify on the LPA’s planning register.',
         ),
-        el('ul', { class: 'hit-list app-list', ariaLabel: 'Planning applications, newest first' }, ...appHits.map(planningAppCard)),
+        el('ul', { class: 'app-list', ariaLabel: 'Planning applications, newest first' }, ...appHits.map(planningAppCard)),
       ),
     );
   }

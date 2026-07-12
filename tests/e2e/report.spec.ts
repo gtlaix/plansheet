@@ -179,7 +179,7 @@ test('a postcode generates a ranked plan sheet, admin first', async ({ page }) =
   await expect(page.locator('.app-list')).toContainText('Two-storey rear extension');
   await expect(page.locator('.app-list')).toContainText('granted');
   await expect(page.locator('.app-list a[href="https://lpa.example/apps/24-01234"]')).toBeVisible();
-  const constraintTitles = await page.$$eval('.hit-list:not(.app-list) .hit h4', (els) => els.map((e) => e.textContent!.trim()));
+  const constraintTitles = await page.$$eval('.hit-list .hit h4', (els) => els.map((e) => e.textContent!.trim()));
   expect(constraintTitles.join(' ')).not.toContain('24/01234/FUL');
 });
 
