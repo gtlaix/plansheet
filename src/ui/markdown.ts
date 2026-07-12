@@ -1,5 +1,13 @@
 import { entityPageUrl } from '../api/planningData';
-import { CATEGORY_LABELS, classifyChecked, impactTier, TIER_LABELS } from '../datasets';
+import {
+  CATEGORY_LABELS,
+  classifyChecked,
+  impactTier,
+  PLANNING_APP_SLUG,
+  planningAppDate,
+  planningAppSummary,
+  TIER_LABELS,
+} from '../datasets';
 import { formatCoverage } from '../coverage';
 import { formatArea, formatDistance } from '../geometry';
 import { DATA_GAPS } from '../dataGaps';
@@ -31,7 +39,12 @@ export function reportToMarkdown(data: ReportData): string {
   lines.push(`- **Generated:** ${today}`, '');
 
   const adminHits = data.hits.filter((h) => h.registry.category === 'administrative');
-  const constraintHits = data.hits.filter((h) => h.registry.category !== 'administrative');
+  const appHits = data.hits
+    .filter((h) => h.registry.slug === PLANNING_APP_SLUG)
+    .sort((a, b) => planningAppDate(b.entity).localeCompare(planningAppDate(a.entity)));
+  const constraintHits = data.hits.filter(
+    (h) => h.registry.category !== 'administrative' && h.registry.slug !== PLANNING_APP_SLUG,
+  );
 
   // --- Administrative context ---
   lines.push('## Administrative context', '');
@@ -69,6 +82,31 @@ export function reportToMarkdown(data: ReportData): string {
     }
   } else {
     lines.push('No planning constraints or designations intersect this point.', '');
+  }
+
+  // --- Planning history ---
+  if (appHits.length > 0) {
+    lines.push(`## Planning history (${appHits.length} application${appHits.length === 1 ? '' : 's'})`, '');
+    lines.push(
+      '_Applications recorded on the Planning Data platform for this location, newest first. Only some ' +
+        'LPAs publish here — this is **not** a complete planning history; verify on the LPA planning register._',
+      '',
+    );
+    for (const hit of appHits) {
+      const app = planningAppSummary(hit.entity);
+      lines.push(`### ${app.name !== '' ? app.name : `Application ${app.reference}`}`);
+      lines.push(`- **Reference:** ${app.reference}`);
+      if (app.description) lines.push(`- **Proposal:** ${app.description}`);
+      const statusBits = [app.appType, app.status].filter(Boolean).join(' · ');
+      if (statusBits) lines.push(`- **Type/status:** ${statusBits}`);
+      const decisionBits = [app.decision, app.decisionType].filter(Boolean).join(' — ');
+      if (decisionBits || app.decisionDate) {
+        lines.push(`- **Decision:** ${decisionBits || 'date only'}${app.decisionDate ? ` (${app.decisionDate})` : ''}`);
+      }
+      if (app.address) lines.push(`- **Address:** ${app.address}`);
+      if (app.documentationUrl) lines.push(`- **Documents:** ${app.documentationUrl}`);
+      lines.push(`- **Source:** ${entityPageUrl(hit.entity.entity)}`, '');
+    }
   }
 
   // --- Nearby constraints (proximity scan) ---

@@ -310,6 +310,11 @@ a {
   border-style: dashed;
 }
 
+/* Planning history cards: accent spine, no severity tier */
+.app-list .hit {
+  border-left-color: var(--accent);
+}
+
 /* % of site covered (SPEC-02, polygon checks) */
 .hit-coverage {
   margin: 0.2rem 0 0;

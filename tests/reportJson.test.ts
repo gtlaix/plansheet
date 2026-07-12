@@ -62,6 +62,35 @@ describe('reportToJson', () => {
     expect(report.notCovered.length).toBeGreaterThan(0);
   });
 
+  it('exports planning applications as planningHistory, not constraints', () => {
+    const withApp = reportToJson({
+      selection: { lat: 51.5014, lng: -0.1419, label: 'SW1A 1AA' },
+      nearestPostcode: null,
+      hits: sortHits([
+        ...hits,
+        scoreEntity(
+          entity('planning-application', {
+            entity: 77,
+            reference: '24/01234/FUL',
+            description: 'Two-storey rear extension',
+            'planning-application-status': 'decided',
+            'planning-decision': 'granted',
+            'decision-date': '2024-06-01',
+          }),
+          reg('planning-application'),
+        ),
+      ]),
+      checked: buildRegistry([]),
+      failedDatasets: [],
+    });
+    expect(withApp.planningHistory).toHaveLength(1);
+    const app = withApp.planningHistory![0];
+    expect(app.reference).toBe('24/01234/FUL');
+    expect(app.decision).toBe('granted');
+    expect(app.decisionDate).toBe('2024-06-01');
+    expect(withApp.constraints.map((c) => c.dataset)).not.toContain('planning-application');
+  });
+
   it('omits the site block for a point check but includes it for a boundary', () => {
     expect(report.site).toBeUndefined();
 

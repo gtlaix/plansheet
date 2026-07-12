@@ -1,5 +1,13 @@
 import { entityPageUrl } from '../api/planningData';
-import { CATEGORY_LABELS, classifyChecked, impactTier, TIER_LABELS } from '../datasets';
+import {
+  CATEGORY_LABELS,
+  classifyChecked,
+  impactTier,
+  PLANNING_APP_SLUG,
+  planningAppDate,
+  planningAppSummary,
+  TIER_LABELS,
+} from '../datasets';
 import { formatCoverage } from '../coverage';
 import { formatArea, formatDistance } from '../geometry';
 import { DEFAULT_RADIUS_M, RADIUS_PRESETS_M } from '../proximity';
@@ -271,9 +279,51 @@ function saveButton(onSave: () => void): HTMLElement {
   return btn;
 }
 
+/** One planning application, as a history entry rather than a constraint. */
+function planningAppCard(hit: ScoredHit): HTMLElement {
+  const app = planningAppSummary(hit.entity);
+  const title = app.name !== '' ? app.name : `Application ${app.reference}`;
+  const statusBits = [app.appType, app.status].filter(Boolean).join(' · ');
+  const decisionBits = [app.decision, app.decisionType].filter(Boolean).join(' — ');
+
+  return el(
+    'li',
+    { class: 'hit app-card' },
+    el(
+      'h4',
+      {},
+      el('a', { href: entityPageUrl(hit.entity.entity), target: '_blank', rel: 'noopener' }, title),
+    ),
+    el('p', { class: 'hit-dataset' }, `Ref ${app.reference}${statusBits ? ` · ${statusBits}` : ''}`),
+    ...(app.description ? [el('p', { class: 'hit-blurb' }, app.description)] : []),
+    ...(decisionBits
+      ? [el('p', { class: 'hit-detail' }, el('strong', {}, 'Decision: '), decisionBits + (app.decisionDate ? ` (${app.decisionDate})` : ''))]
+      : app.decisionDate
+        ? [el('p', { class: 'hit-detail' }, el('strong', {}, 'Decision date: '), app.decisionDate)]
+        : []),
+    ...(app.address ? [el('p', { class: 'hit-meta' }, app.address)] : []),
+    ...(app.startDate ? [el('p', { class: 'hit-meta' }, `Received/valid from ${app.startDate}`)] : []),
+    ...(app.documentationUrl
+      ? [
+          el(
+            'p',
+            { class: 'hit-meta' },
+            el('a', { href: app.documentationUrl, target: '_blank', rel: 'noopener' }, 'View application documents ↗'),
+          ),
+        ]
+      : []),
+    hitDetails(hit),
+  );
+}
+
 export function renderReport(root: HTMLElement, data: ReportData, handlers: ReportHandlers = {}): void {
   const adminHits = data.hits.filter((h) => h.registry.category === 'administrative');
-  const constraintHits = data.hits.filter((h) => h.registry.category !== 'administrative');
+  const appHits = data.hits
+    .filter((h) => h.registry.slug === PLANNING_APP_SLUG)
+    .sort((a, b) => planningAppDate(b.entity).localeCompare(planningAppDate(a.entity)));
+  const constraintHits = data.hits.filter(
+    (h) => h.registry.category !== 'administrative' && h.registry.slug !== PLANNING_APP_SLUG,
+  );
 
   const report = el('div', { class: 'report', role: 'region', ariaLabel: 'PlanSheet results' });
 
@@ -359,6 +409,26 @@ export function renderReport(root: HTMLElement, data: ReportData, handlers: Repo
     );
   }
   report.append(constraintSection);
+
+  // --- 2a. Planning history: applications at this location ---
+  // Planning history is central to a site's planning potential (what has been
+  // applied for, granted or refused here), so it gets its own section rather
+  // than a low-ranked constraint card.
+  if (appHits.length > 0) {
+    report.append(
+      el(
+        'section',
+        { class: 'report-section' },
+        el('h3', {}, `Planning history (${appHits.length} application${appHits.length === 1 ? '' : 's'})`),
+        el(
+          'p',
+          { class: 'hint' },
+          'Applications recorded on the Planning Data platform for this location, newest first. Only some LPAs publish applications here — this is NOT a complete planning history; verify on the LPA’s planning register.',
+        ),
+        el('ul', { class: 'hit-list app-list', ariaLabel: 'Planning applications, newest first' }, ...appHits.map(planningAppCard)),
+      ),
+    );
+  }
 
   // --- 2b. Proximity scan (SPEC-04) ---
   if (handlers.onScan) report.append(proximitySection(data, handlers.onScan));

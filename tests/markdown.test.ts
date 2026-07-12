@@ -52,4 +52,35 @@ describe('reportToMarkdown', () => {
   it('includes the data-gaps checklist', () => {
     expect(md).toContain('## Not covered by this check');
   });
+
+  it('puts planning applications in a Planning history section, not constraints', () => {
+    const withApp = reportToMarkdown({
+      selection: { lat: 51.5014, lng: -0.1419, label: 'SW1A 1AA' },
+      nearestPostcode: null,
+      hits: sortHits([
+        scoreEntity(entity('listed-building', { name: 'Buckingham Palace', 'listed-building-grade': 'I' }), reg('listed-building')),
+        scoreEntity(
+          entity('planning-application', {
+            entity: 77,
+            name: '',
+            reference: '24/01234/FUL',
+            description: 'Two-storey rear extension',
+            'planning-decision': 'granted',
+            'decision-date': '2024-06-01',
+            'documentation-url': 'https://lpa.example/apps/24-01234',
+          }),
+          reg('planning-application'),
+        ),
+      ]),
+      checked: buildRegistry([]),
+      failedDatasets: [],
+    });
+    expect(withApp).toContain('## Planning history (1 application)');
+    expect(withApp).toContain('**Proposal:** Two-storey rear extension');
+    expect(withApp).toContain('**Decision:** granted (2024-06-01)');
+    expect(withApp).toContain('https://lpa.example/apps/24-01234');
+    expect(withApp).toContain('not** a complete planning history');
+    // the constraints section counts only the listing, not the application
+    expect(withApp).toContain('## Constraints & designations (1)');
+  });
 });

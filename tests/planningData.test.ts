@@ -87,7 +87,8 @@ describe('queryEntities', () => {
     expect(urls[0]).toContain('longitude=-0.1419');
     expect(urls[0]).toContain('dataset=dataset-0');
     expect(urls[1]).toContain(`dataset=dataset-${DATASETS_PER_REQUEST}`);
-    expect(result.entities).toHaveLength(4); // fixture returned for both batches
+    // the fixture is returned for both batches; identical entity ids dedupe
+    expect(result.entities).toHaveLength(2);
     expect(result.failedDatasets).toEqual([]);
   });
 

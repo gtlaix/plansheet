@@ -1,5 +1,12 @@
 import { entityPageUrl } from '../api/planningData';
-import { classifyChecked, impactTier, TIER_LABELS } from '../datasets';
+import {
+  classifyChecked,
+  impactTier,
+  PLANNING_APP_SLUG,
+  planningAppDate,
+  planningAppSummary,
+  TIER_LABELS,
+} from '../datasets';
 import { DATA_GAPS } from '../dataGaps';
 import type { PlansheetReport, ReportData, ScoredHit } from '../types';
 
@@ -27,7 +34,12 @@ function optionalString(value: unknown): string | undefined {
  */
 export function reportToJson(data: ReportData): PlansheetReport {
   const adminHits = data.hits.filter((h) => h.registry.category === 'administrative');
-  const constraintHits = data.hits.filter((h) => h.registry.category !== 'administrative');
+  const appHits = data.hits
+    .filter((h) => h.registry.slug === PLANNING_APP_SLUG)
+    .sort((a, b) => planningAppDate(b.entity).localeCompare(planningAppDate(a.entity)));
+  const constraintHits = data.hits.filter(
+    (h) => h.registry.category !== 'administrative' && h.registry.slug !== PLANNING_APP_SLUG,
+  );
   const { clear, partialNoData } = classifyChecked(data.checked, data.hits, data.failedDatasets);
 
   return {
@@ -46,6 +58,28 @@ export function reportToJson(data: ReportData): PlansheetReport {
             areaHectares: Number((data.site.areaM2 / 10000).toFixed(4)),
             geometry: data.site.geojson,
           },
+        }
+      : {}),
+    ...(appHits.length > 0
+      ? {
+          planningHistory: appHits.map((h) => {
+            const app = planningAppSummary(h.entity);
+            return {
+              entity: h.entity.entity,
+              url: entityPageUrl(h.entity.entity),
+              reference: app.reference,
+              name: app.name,
+              description: app.description,
+              status: app.status,
+              applicationType: app.appType,
+              decision: app.decision,
+              decisionType: app.decisionType,
+              decisionDate: app.decisionDate,
+              startDate: app.startDate,
+              address: app.address,
+              documentationUrl: app.documentationUrl,
+            };
+          }),
         }
       : {}),
     ...(data.nearby

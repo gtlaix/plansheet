@@ -163,6 +163,26 @@ export interface PlansheetReport {
     /** Polygon checks only: how much of the site this constraint covers. */
     siteCoverage?: { percent: number; areaSquareMetres: number } | 'n/a';
   }[];
+  /**
+   * Planning applications recorded at the location (site planning history),
+   * newest first. Only some LPAs publish applications to the platform, so
+   * absence is NOT a clean history.
+   */
+  planningHistory?: {
+    entity: number;
+    url: string;
+    reference: string;
+    name: string;
+    description?: string;
+    status?: string;
+    applicationType?: string;
+    decision?: string;
+    decisionType?: string;
+    decisionDate?: string;
+    startDate?: string;
+    address?: string;
+    documentationUrl?: string;
+  }[];
   /** Constraints near (not on) the site from a proximity scan, if one was run. */
   nearby?: {
     radiusMetres: number;

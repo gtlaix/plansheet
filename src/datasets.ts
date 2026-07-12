@@ -120,7 +120,7 @@ export const OVERLAY: Record<string, OverlayEntry> = {
 
   // --- Informational / lower impact ---
   'agricultural-land-classification': { category: 'info', impactScore: 30, blurb: 'Agricultural land grade; the best and most versatile grades (1–3a) are protected by policy.' },
-  'planning-application': { category: 'info', impactScore: 28, blurb: 'A recorded planning application on or near this site — planning history, not a designation.' },
+  'planning-application': { category: 'info', impactScore: 28, blurb: 'Planning application recorded at this location — site planning history.', partialCoverage: true },
   'protected-land': { category: 'info', impactScore: 30, blurb: 'Land under a protective designation — check the specific local policy for what it restricts.' },
   'buffer-zone': { category: 'info', impactScore: 25, blurb: 'A buffer zone around a protected feature; check what it safeguards.' },
   'infrastructure-project': { category: 'info', impactScore: 35 },
@@ -319,6 +319,55 @@ export function scoreEntity(entity: PlanningEntity, registry: RegistryEntry): Sc
   }
 
   return { entity, registry, score, qualifier, detail };
+}
+
+/** Planning applications get their own report section, not a constraint card. */
+export const PLANNING_APP_SLUG = 'planning-application';
+
+/** The useful planning-history fields of a planning-application entity. */
+export interface PlanningAppSummary {
+  reference: string;
+  name: string;
+  description?: string;
+  status?: string;
+  appType?: string;
+  decision?: string;
+  decisionType?: string;
+  decisionDate?: string;
+  startDate?: string;
+  address?: string;
+  documentationUrl?: string;
+}
+
+function optional(entity: PlanningEntity, field: string): string | undefined {
+  const value = entity[field];
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
+}
+
+/**
+ * Extract the planning-history fields from a planning-application entity.
+ * Field names confirmed against the MHCLG specification (dataset
+ * planning-application, 2026-07-08).
+ */
+export function planningAppSummary(entity: PlanningEntity): PlanningAppSummary {
+  return {
+    reference: entity.reference || String(entity.entity),
+    name: String(entity.name ?? '').trim(),
+    description: optional(entity, 'description') ?? optional(entity, 'notes'),
+    status: optional(entity, 'planning-application-status'),
+    appType: optional(entity, 'planning-application-type'),
+    decision: optional(entity, 'planning-decision'),
+    decisionType: optional(entity, 'planning-decision-type'),
+    decisionDate: optional(entity, 'decision-date'),
+    startDate: optional(entity, 'start-date'),
+    address: optional(entity, 'address-text'),
+    documentationUrl: optional(entity, 'documentation-url'),
+  };
+}
+
+/** Newest-first ordering key: decision date, else received/start, else entry. */
+export function planningAppDate(entity: PlanningEntity): string {
+  return optional(entity, 'decision-date') ?? optional(entity, 'start-date') ?? optional(entity, 'entry-date') ?? '';
 }
 
 /**

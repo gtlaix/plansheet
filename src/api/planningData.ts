@@ -148,8 +148,18 @@ async function runBatches(
   const results = await Promise.all(
     chunk(slugs, DATASETS_PER_REQUEST).map((batch) => collectBatch(buildFirstUrl(batch), batch, fetchFn, signal)),
   );
+  // Batches are disjoint by dataset, but pagination pages can overlap when the
+  // underlying data shifts mid-walk — dedupe by entity id for safety.
+  const seen = new Set<number>();
+  const entities = results
+    .flatMap((r) => r.entities)
+    .filter((e) => {
+      if (seen.has(e.entity)) return false;
+      seen.add(e.entity);
+      return true;
+    });
   return {
-    entities: results.flatMap((r) => r.entities),
+    entities,
     failedDatasets: results.flatMap((r) => r.failed),
   };
 }

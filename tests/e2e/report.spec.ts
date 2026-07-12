@@ -13,6 +13,7 @@ const DATASETS = {
     { dataset: 'parish', name: 'Parish', typology: 'geography' },
     { dataset: 'tree-preservation-zone', name: 'Tree preservation zone', typology: 'geography' },
     { dataset: 'site-of-special-scientific-interest', name: 'Site of special scientific interest', typology: 'geography' },
+    { dataset: 'planning-application', name: 'Planning application', typology: 'geography' },
     { dataset: 'title-boundary', name: 'Title boundary', typology: 'geography' },
     { dataset: 'shiny-new-designation', name: 'Shiny new designation', typology: 'geography' },
     { dataset: 'border', name: 'Border', typology: 'geography' },
@@ -31,6 +32,8 @@ const ENTITIES = {
     { entity: 204, name: 'Mystery Zone', dataset: 'shiny-new-designation', reference: 'X1', typology: 'geography', 'start-date': '', 'end-date': '', 'entry-date': '2024-01-01' },
     { entity: 205, name: 'England', dataset: 'border', reference: 'ENG', typology: 'geography', 'start-date': '', 'end-date': '', 'entry-date': '2024-01-01' },
     { entity: 301, name: '', dataset: 'title-boundary', reference: 'INSPIRE-301', typology: 'geography', 'start-date': '', 'end-date': '', 'entry-date': '2024-01-01' },
+    { entity: 401, name: '', dataset: 'planning-application', reference: '24/01234/FUL', description: 'Two-storey rear extension and loft conversion', 'planning-application-status': 'decided', 'planning-application-type': 'full', 'planning-decision': 'granted', 'decision-date': '2024-06-01', 'documentation-url': 'https://lpa.example/apps/24-01234', typology: 'geography', 'start-date': '2024-02-01', 'end-date': '', 'entry-date': '2024-06-02' },
+    { entity: 402, name: '', dataset: 'planning-application', reference: '19/00777/HOU', description: 'Single garage', 'planning-decision': 'refused', 'decision-date': '2019-03-01', typology: 'geography', 'start-date': '2019-01-01', 'end-date': '', 'entry-date': '2019-03-02' },
   ],
 };
 
@@ -167,6 +170,17 @@ test('a postcode generates a ranked plan sheet, admin first', async ({ page }) =
 
   // per-category layer toggle appears once overlays load
   await expect(page.locator('.leaflet-control-layers')).toContainText('Heritage');
+
+  // planning history: its own section, newest first, decision + docs link,
+  // and NOT counted among the constraints
+  await expect(page.locator('#report-root')).toContainText('Planning history (2 applications)');
+  const appTitles = await page.$$eval('.app-list h4', (els) => els.map((e) => e.textContent!.trim()));
+  expect(appTitles[0]).toContain('24/01234/FUL'); // 2024 decision before the 2019 one
+  await expect(page.locator('.app-list')).toContainText('Two-storey rear extension');
+  await expect(page.locator('.app-list')).toContainText('granted');
+  await expect(page.locator('.app-list a[href="https://lpa.example/apps/24-01234"]')).toBeVisible();
+  const constraintTitles = await page.$$eval('.hit-list:not(.app-list) .hit h4', (els) => els.map((e) => e.textContent!.trim()));
+  expect(constraintTitles.join(' ')).not.toContain('24/01234/FUL');
 });
 
 test('a title boundary can be adopted as the site boundary', async ({ page }) => {

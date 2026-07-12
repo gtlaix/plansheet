@@ -7,6 +7,8 @@ import {
   EXCLUDED_SLUGS,
   impactTier,
   OVERLAY,
+  planningAppDate,
+  planningAppSummary,
   scoreEntity,
   sortHits,
 } from '../src/datasets';
@@ -98,6 +100,37 @@ describe('buildRegistry', () => {
     expect(reg('proposed-ramsar-site').category).toBe('ecology');
     expect(reg('planning-application').category).toBe('info');
     expect(reg('nuclear-safety-zone').category).toBe('hazard');
+  });
+
+  it('summarises a planning application from its spec-confirmed fields', () => {
+    const app = entity('planning-application', {
+      reference: '24/01234/FUL',
+      name: '',
+      description: 'Two-storey rear extension',
+      'planning-application-status': 'decided',
+      'planning-application-type': 'full',
+      'planning-decision': 'granted',
+      'planning-decision-type': 'conditional',
+      'decision-date': '2024-06-01',
+      'documentation-url': 'https://lpa.example/apps/24-01234',
+      'address-text': '1 Test Street',
+    });
+    const s = planningAppSummary(app);
+    expect(s.reference).toBe('24/01234/FUL');
+    expect(s.description).toBe('Two-storey rear extension');
+    expect(s.decision).toBe('granted');
+    expect(s.decisionType).toBe('conditional');
+    expect(s.decisionDate).toBe('2024-06-01');
+    expect(s.status).toBe('decided');
+    expect(s.appType).toBe('full');
+    expect(s.documentationUrl).toBe('https://lpa.example/apps/24-01234');
+    expect(s.address).toBe('1 Test Street');
+
+    // newest-first key falls back decision-date → start-date → entry-date
+    expect(planningAppDate(app)).toBe('2024-06-01');
+    expect(planningAppDate(entity('planning-application', {}))).toBe('2000-01-01'); // start-date fixture
+    // planning applications are LPA-published: zero hits must be "no data", not clear
+    expect(reg('planning-application').partialCoverage).toBe(true);
   });
 
   it('carries entity counts and data dates through from /dataset.json', () => {
