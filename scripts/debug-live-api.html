@@ -208,9 +208,10 @@
                 firstFail = wkt.length; break;
               }
             }
-            const ok = lastOk >= 1800;
+            const budget = 3500;
+            const ok = lastOk >= budget;
             return { status: ok ? 'pass' : 'warn',
-              detail: lines.join('\n') + `\n→ PlanSheet simplifies query WKT to ≤ 1800 chars; ${ok ? 'comfortably within what the API accepted.' : `the API failed below 1800 chars (last OK: ${lastOk}) — Claude should lower MAX_QUERY_WKT_CHARS.`}` };
+              detail: lines.join('\n') + `\n→ PlanSheet simplifies query WKT to ≤ ${budget} chars; ${ok ? 'comfortably within what the API accepted.' : `the API failed below ${budget} chars (last OK: ${lastOk}) — Claude should lower MAX_QUERY_WKT_CHARS.`}` };
           },
         },
         // ---- 5. SPEC-04: dense envelope + geojson truncation ----
@@ -233,8 +234,8 @@
               `entity.json page: ${jsonN} entities · links.next present: ${hasNext}`,
               `entity.geojson page: ${geoN} features${truncated ? ` → TRUNCATED (only ${geoN} of ${total})` : ''}`,
             ];
-            return { status: truncated ? 'warn' : 'pass',
-              detail: lines.join('\n') + (truncated ? '\n→ geojson pages at 500: PlanSheet\'s proximity scan can miss features on very dense wide scans. Paste this to Claude — the fix is per-dataset pagination.' : '\n→ no truncation observed at this density.') };
+            return { status: truncated ? 'info' : 'pass',
+              detail: lines.join('\n') + (truncated ? '\n→ a single geojson request pages at 500. PlanSheet already walks ?offset= pages (verified by check 8), so the deployed app sees past this — no action needed.' : '\n→ no truncation observed at this density.') };
           },
         },
         // ---- 6. planning-application live fields ----

@@ -89,6 +89,8 @@ Markdown and in the JSON schema's optional `nearby` block.
 3,886 listed buildings and `entity.geojson` returned exactly 500 with no `links` —
 truncation confirmed. Fixed the same day: geojson fetches now walk `offset` pages (500 per
 page, capped at 6 pages per batch, with a replay guard in case a server ever ignores
-`offset`). The UI notes that ≥1 km scans in very dense areas may still show nearest
-features only. Remaining live check: a 2 km scan responsiveness sanity-pass in the app
-itself.
+`offset`). Debug tool v2 check 8 then **confirmed `?offset=` returns a genuinely different
+page live** (page 1 first entity 31482834, page 2 first entity 31524306), so the paginated
+fetch sees past 500 features. The UI notes that ≥1 km scans in very dense areas may still
+show nearest features only. Remaining live check: a 2 km scan responsiveness sanity-pass in
+the app itself.
