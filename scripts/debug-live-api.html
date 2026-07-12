@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PlanSheet — live API debug</title>
+    <style>
+      :root { color-scheme: light dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; padding: 1.5rem;
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        line-height: 1.5; color: #1d2939; background: #f8fafc;
+      }
+      main { max-width: 900px; margin: 0 auto; }
+      h1 { font-size: 1.4rem; margin: 0 0 0.25rem; }
+      p.sub { margin: 0 0 1.25rem; color: #475467; }
+      .card { background: #fff; border: 1px solid #e4e7ec; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 0.9rem; }
+      .check-head { display: flex; align-items: center; gap: 0.6rem; }
+      .check-head h2 { font-size: 1rem; margin: 0; flex: 1; }
+      .pill { font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 999px; color: #fff; }
+      .pill.pass { background: #1d7a3e; } .pill.fail { background: #a4262c; }
+      .pill.warn { background: #996f00; } .pill.info { background: #1c5b8e; }
+      .pill.running { background: #5f6b7a; }
+      .detail { margin: 0.5rem 0 0; font-size: 0.9rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+      code, .detail { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      button {
+        font: inherit; font-weight: 600; cursor: pointer; color: #fff; background: #1c5b8e;
+        border: none; border-radius: 4px; padding: 0.5rem 1rem; margin-right: 0.5rem;
+      }
+      button:disabled { opacity: 0.5; cursor: default; }
+      #copied { color: #475467; font-size: 0.85rem; }
+      @media (prefers-color-scheme: dark) {
+        body { background: #0f151c; color: #e6edf5; }
+        .card { background: #1a222c; border-color: #2c3846; }
+        p.sub, #copied { color: #9aa7b8; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>PlanSheet — live API debug</h1>
+      <p class="sub">
+        Runs the verification checks PlanSheet's build environment cannot (it has no access to
+        planning.data.gov.uk). All requests go directly from your browser to the API — nothing else.
+        Takes ~30 seconds; leave the page open. When it finishes, click <strong>Copy report</strong>
+        and paste the result back to Claude.
+      </p>
+      <div class="card">
+        <button id="copyBtn" disabled>Copy report</button>
+        <button id="dlBtn" class="secondary" disabled>Download report</button>
+        <span id="copied"></span>
+      </div>
+      <div id="checks"></div>
+    </main>
+
+    <script>
+      const API = 'https://www.planning.data.gov.uk';
+      const results = [];
+      const checksEl = document.getElementById('checks');
+
+      // ---------- tiny geometry helpers (mirror src/geometry.ts) ----------
+      const mPerDegLat = 111320;
+      const degLat = (m) => m / mPerDegLat;
+      const degLng = (m, lat) => m / (mPerDegLat * Math.cos((lat * Math.PI) / 180));
+
+      function bboxOf(geom) {
+        let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+        const rings = geom.type === 'Polygon' ? geom.coordinates : geom.coordinates.flat();
+        for (const ring of rings) for (const [lng, lat] of ring) {
+          if (lng < minLng) minLng = lng; if (lat < minLat) minLat = lat;
+          if (lng > maxLng) maxLng = lng; if (lat > maxLat) maxLat = lat;
+        }
+        return [minLng, minLat, maxLng, maxLat];
+      }
+      function pointInPolygon(p, geom) {
+        const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+        let inside = false;
+        for (const rings of polys) for (const ring of rings) {
+          for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            const [xi, yi] = ring[i], [xj, yj] = ring[j];
+            if (yi > p[1] !== yj > p[1] && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) inside = !inside;
+          }
+        }
+        return inside;
+      }
+      function rectWkt(w, s, e, n) {
+        const f = (x) => x.toFixed(6);
+        return `POLYGON ((${f(w)} ${f(s)}, ${f(e)} ${f(s)}, ${f(e)} ${f(n)}, ${f(w)} ${f(n)}, ${f(w)} ${f(s)}))`;
+      }
+      function circleWkt(lat, lng, rM, nPts) {
+        const pts = [];
+        for (let i = 0; i < nPts; i++) {
+          const a = (2 * Math.PI * i) / nPts;
+          pts.push(`${(lng + degLng(rM, lat) * Math.cos(a)).toFixed(6)} ${(lat + degLat(rM) * Math.sin(a)).toFixed(6)}`);
+        }
+        pts.push(pts[0]);
+        return `POLYGON ((${pts.join(', ')}))`;
+      }
+
+      // ---------- runner ----------
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      async function getJson(url) {
+        const res = await fetch(url);
+        if (!res.ok) { const err = new Error(`HTTP ${res.status}`); err.status = res.status; throw err; }
+        return res.json();
+      }
+
+      function record(id, title, status, detail) {
+        results.push({ id, title, status, detail });
+        const card = document.getElementById(`check-${id}`);
+        card.querySelector('.pill').textContent = status.toUpperCase();
+        card.querySelector('.pill').className = `pill ${status}`;
+        card.querySelector('.detail').textContent = detail;
+      }
+      function addCard(id, title) {
+        const card = document.createElement('div');
+        card.className = 'card'; card.id = `check-${id}`;
+        card.innerHTML = `<div class="check-head"><h2>${title}</h2><span class="pill running">RUNNING</span></div><p class="detail">…</p>`;
+        checksEl.appendChild(card);
+      }
+
+      const CHECKS = [
+        // ---- 1. dataset.json freshness fields (BACKLOG-10) ----
+        {
+          id: 'freshness', title: '1 · dataset.json: entity counts + date fields',
+          run: async () => {
+            const { datasets } = await getJson(`${API}/dataset.json`);
+            const geo = datasets.filter((d) => d.typology === 'geography');
+            const candidates = ['last-updated', 'entry-date', 'last-collection-attempt'];
+            const pct = (f) => Math.round((geo.filter((d) => typeof d[f] === 'string' && d[f]).length / geo.length) * 100);
+            const counts = pct('entity-count') || Math.round((geo.filter((d) => typeof d['entity-count'] === 'number').length / geo.length) * 100);
+            const lines = [`${geo.length} geography datasets`,
+              `entity-count present (number): ${Math.round((geo.filter((d) => typeof d['entity-count'] === 'number').length / geo.length) * 100)}%`,
+              ...candidates.map((f) => `${f} present: ${pct(f)}%`),
+              `all keys of one row (${geo[0].dataset}): ${Object.keys(geo[0]).join(', ')}`];
+            const anyDate = candidates.some((f) => pct(f) > 50);
+            return { status: anyDate ? 'pass' : 'warn', detail: lines.join('\n') + (anyDate ? '' : '\n→ none of the candidate date fields is common; PlanSheet will show counts only.') };
+          },
+        },
+        // ---- 2. point query sanity ----
+        {
+          id: 'point', title: '2 · Point query at SW1A 1AA returns entities',
+          run: async () => {
+            const body = await getJson(`${API}/entity.json?latitude=51.501009&longitude=-0.141588&dataset=conservation-area&dataset=listed-building&dataset=green-belt&dataset=local-planning-authority&limit=100`);
+            const ds = [...new Set((body.entities ?? []).map((e) => e.dataset))];
+            return { status: (body.entities ?? []).length > 0 ? 'pass' : 'fail',
+              detail: `${(body.entities ?? []).length} entities · datasets hit: ${ds.join(', ') || 'none'}` };
+          },
+        },
+        // ---- 3. SPEC-01: edge-intersection geometry query ----
+        {
+          id: 'edge', title: '3 · SPEC-01: polygon straddling a conservation-area edge is caught',
+          run: async () => {
+            const fc = await getJson(`${API}/entity.geojson?latitude=51.501009&longitude=-0.141588&dataset=conservation-area&limit=5`);
+            const feat = (fc.features ?? []).find((f) => f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'));
+            if (!feat) return { status: 'warn', detail: 'No conservation-area polygon at the control point — cannot run the edge test here.' };
+            const id = feat.properties.entity;
+            const geom = feat.geometry;
+            const ring = (geom.type === 'Polygon' ? geom.coordinates[0] : geom.coordinates[0][0]);
+            // centroid (vertex average) and a boundary vertex
+            let cx = 0, cy = 0; for (const [x, y] of ring) { cx += x; cy += y; } cx /= ring.length; cy /= ring.length;
+            const v = ring[Math.floor(ring.length / 2)];
+            // walk outward from the boundary vertex until the rect centre is outside
+            const dirX = v[0] - cx, dirY = v[1] - cy;
+            const len = Math.hypot(dirX, dirY) || 1;
+            let centre = null;
+            for (const stepM of [20, 40, 80, 160]) {
+              const c = [v[0] + (dirX / len) * degLng(stepM, v[1]), v[1] + (dirY / len) * degLat(stepM)];
+              if (!pointInPolygon(c, geom)) { centre = c; break; }
+            }
+            if (!centre) return { status: 'warn', detail: `Could not place a test centre outside CA ${id} (concave boundary) — try a different area.` };
+            // rectangle big enough to reach back across the boundary vertex
+            const half = 200;
+            const wkt = rectWkt(centre[0] - degLng(half, centre[1]), centre[1] - degLat(half), centre[0] + degLng(half, centre[1]), centre[1] + degLat(half));
+            await sleep(300);
+            const hit = await getJson(`${API}/entity.json?geometry=${encodeURIComponent(wkt)}&geometry_relation=intersects&dataset=conservation-area&limit=100`);
+            const found = (hit.entities ?? []).some((e) => e.entity === id);
+            await sleep(300);
+            const centreHit = await getJson(`${API}/entity.json?latitude=${centre[1].toFixed(6)}&longitude=${centre[0].toFixed(6)}&dataset=conservation-area&limit=100`);
+            const centreInside = (centreHit.entities ?? []).some((e) => e.entity === id);
+            const detail = `CA entity ${id} (“${feat.properties.name || ''}”)\nrect centre OUTSIDE the CA (point query finds it there: ${centreInside})\ngeometry-intersects query finds it: ${found}`;
+            if (found && !centreInside) return { status: 'pass', detail: detail + '\n→ edge-clipping constraints ARE caught by the polygon query. SPEC-01 verified.' };
+            if (found) return { status: 'warn', detail: detail + '\n→ query works, but the control centre landed inside the CA, so the edge case is not fully isolated.' };
+            return { status: 'fail', detail: detail + '\n→ the geometry query did NOT return the edge-straddled CA. Paste this to Claude.' };
+          },
+        },
+        // ---- 4. URL length limit for WKT ----
+        {
+          id: 'urllen', title: '4 · How long a geometry query URL does the API accept?',
+          run: async () => {
+            const lines = [];
+            let lastOk = 0, firstFail = null;
+            for (const n of [50, 100, 200, 400, 800]) {
+              const wkt = circleWkt(51.501009, -0.141588, 150, n);
+              const url = `${API}/entity.json?geometry=${encodeURIComponent(wkt)}&geometry_relation=intersects&dataset=green-belt&limit=1`;
+              await sleep(300);
+              try {
+                await getJson(url);
+                lines.push(`${n} vertices · WKT ${wkt.length} chars · URL ${url.length} chars → OK`);
+                lastOk = wkt.length;
+              } catch (err) {
+                lines.push(`${n} vertices · WKT ${wkt.length} chars · URL ${url.length} chars → ${err.message}`);
+                firstFail = wkt.length; break;
+              }
+            }
+            const ok = lastOk >= 1800;
+            return { status: ok ? 'pass' : 'warn',
+              detail: lines.join('\n') + `\n→ PlanSheet simplifies query WKT to ≤ 1800 chars; ${ok ? 'comfortably within what the API accepted.' : `the API failed below 1800 chars (last OK: ${lastOk}) — Claude should lower MAX_QUERY_WKT_CHARS.`}` };
+          },
+        },
+        // ---- 5. SPEC-04: dense envelope + geojson truncation ----
+        {
+          id: 'dense', title: '5 · SPEC-04: 2 km envelope over central London (volume + truncation)',
+          run: async () => {
+            const lat = 51.5074, lng = -0.1278, r = 2000;
+            const wkt = rectWkt(lng - degLng(r, lat), lat - degLat(r), lng + degLng(r, lat), lat + degLat(r));
+            const g = encodeURIComponent(wkt);
+            const json = await getJson(`${API}/entity.json?geometry=${g}&geometry_relation=intersects&dataset=listed-building&limit=500`);
+            await sleep(300);
+            const gj = await getJson(`${API}/entity.geojson?geometry=${g}&geometry_relation=intersects&dataset=listed-building&limit=500`);
+            const total = json.count ?? '(no count field)';
+            const jsonN = (json.entities ?? []).length;
+            const geoN = (gj.features ?? []).length;
+            const hasNext = Boolean(json.links && json.links.next);
+            const truncated = typeof total === 'number' && geoN < total;
+            const lines = [
+              `listed buildings intersecting the 2 km envelope — API count: ${total}`,
+              `entity.json page: ${jsonN} entities · links.next present: ${hasNext}`,
+              `entity.geojson page: ${geoN} features${truncated ? ` → TRUNCATED (only ${geoN} of ${total})` : ''}`,
+            ];
+            return { status: truncated ? 'warn' : 'pass',
+              detail: lines.join('\n') + (truncated ? '\n→ geojson pages at 500: PlanSheet\'s proximity scan can miss features on very dense wide scans. Paste this to Claude — the fix is per-dataset pagination.' : '\n→ no truncation observed at this density.') };
+          },
+        },
+        // ---- 6. planning-application live fields ----
+        {
+          id: 'apps', title: '6 · planning-application: are the mapped fields real & populated?',
+          run: async () => {
+            const body = await getJson(`${API}/entity.json?dataset=planning-application&limit=25`);
+            const ents = body.entities ?? [];
+            if (ents.length === 0) return { status: 'warn', detail: 'No planning-application entities returned at all.' };
+            const fields = ['description', 'planning-application-status', 'planning-application-type', 'planning-decision', 'planning-decision-type', 'decision-date', 'documentation-url', 'address-text'];
+            const pct = (f) => Math.round((ents.filter((e) => typeof e[f] === 'string' && e[f]).length / ents.length) * 100);
+            const lines = [`sample of ${ents.length} applications (platform total: ${body.count ?? '?'})`,
+              ...fields.map((f) => `${f}: populated in ${pct(f)}%`),
+              `all keys of one record: ${Object.keys(ents[0]).join(', ')}`];
+            const core = pct('description') > 30 || pct('planning-decision') > 30;
+            return { status: core ? 'pass' : 'warn', detail: lines.join('\n') + (core ? '' : '\n→ core fields rarely populated; paste this to Claude to adjust the card mapping.') };
+          },
+        },
+        // ---- 7. title-boundary single-entity geojson shape ----
+        {
+          id: 'title', title: '7 · title-boundary /entity/{id}.geojson shape (Use-as-site-boundary)',
+          run: async () => {
+            const body = await getJson(`${API}/entity.json?latitude=51.501009&longitude=-0.141588&dataset=title-boundary&limit=1`);
+            const ent = (body.entities ?? [])[0];
+            if (!ent) return { status: 'warn', detail: 'No registered title at the control point; try re-running near a residential address.' };
+            await sleep(300);
+            const gj = await getJson(`${API}/entity/${ent.entity}.geojson`);
+            const shape = gj.type === 'FeatureCollection' ? `FeatureCollection(${(gj.features ?? []).length})` : gj.type;
+            const geomType = gj.type === 'FeatureCollection' ? gj.features?.[0]?.geometry?.type : gj.type === 'Feature' ? gj.geometry?.type : gj.type;
+            const ok = geomType === 'Polygon' || geomType === 'MultiPolygon';
+            return { status: ok ? 'pass' : 'fail',
+              detail: `entity ${ent.entity} → response type: ${shape} · geometry: ${geomType}\n→ PlanSheet handles Feature, FeatureCollection and bare geometries; ${ok ? 'compatible.' : 'NOT a polygon — paste this to Claude.'}` };
+          },
+        },
+      ];
+
+      async function runAll() {
+        for (const c of CHECKS) addCard(c.id, c.title);
+        for (const c of CHECKS) {
+          try {
+            const { status, detail } = await c.run();
+            record(c.id, c.title, status, detail);
+          } catch (err) {
+            record(c.id, c.title, 'fail', `Error: ${err.message}`);
+          }
+          await sleep(400); // stay polite to the API
+        }
+        document.getElementById('copyBtn').disabled = false;
+        document.getElementById('dlBtn').disabled = false;
+      }
+
+      function toMarkdown() {
+        const lines = ['# PlanSheet live API debug report', '',
+          `Generated ${new Date().toISOString()} from the browser.`, ''];
+        for (const r of results) {
+          lines.push(`## ${r.title}`, '', `**${r.status.toUpperCase()}**`, '', '```', r.detail, '```', '');
+        }
+        return lines.join('\n');
+      }
+      document.getElementById('copyBtn').addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(toMarkdown()); document.getElementById('copied').textContent = 'Copied ✓'; }
+        catch { document.getElementById('copied').textContent = 'Copy blocked — use Download.'; }
+      });
+      document.getElementById('dlBtn').addEventListener('click', () => {
+        const url = URL.createObjectURL(new Blob([toMarkdown()], { type: 'text/markdown' }));
+        const a = document.createElement('a'); a.href = url; a.download = 'plansheet-debug-report.md'; a.click();
+        URL.revokeObjectURL(url);
+      });
+
+      runAll();
+    </script>
+  </body>
+</html>
