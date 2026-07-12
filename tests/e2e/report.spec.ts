@@ -28,6 +28,7 @@ const ENTITIES = {
     { entity: 102, name: "St James's", dataset: 'ward', reference: 'W1', typology: 'geography', 'start-date': '2000-01-01', 'end-date': '', 'entry-date': '2024-01-01' },
     { entity: 201, name: 'Buckingham Palace', dataset: 'listed-building', reference: '1234567', 'listed-building-grade': 'I', typology: 'geography', 'start-date': '1970-02-05', 'end-date': '', 'entry-date': '2024-01-01' },
     { entity: 202, name: 'Flood Zone', dataset: 'flood-risk-zone', reference: 'FZ2', 'flood-risk-level': '2', typology: 'geography', 'start-date': '', 'end-date': '', 'entry-date': '2024-01-01' },
+    { entity: 206, name: '', dataset: 'flood-risk-zone', reference: 'FZ2B', 'flood-risk-level': '2', typology: 'geography', 'start-date': '', 'end-date': '', 'entry-date': '2024-01-01' },
     { entity: 203, name: 'Whitehall Conservation Area', dataset: 'conservation-area', reference: 'CA55', typology: 'geography', 'start-date': '1969-01-01', 'end-date': '', 'entry-date': '2024-01-01' },
     { entity: 204, name: 'Mystery Zone', dataset: 'shiny-new-designation', reference: 'X1', typology: 'geography', 'start-date': '', 'end-date': '', 'entry-date': '2024-01-01' },
     { entity: 205, name: 'England', dataset: 'border', reference: 'ENG', typology: 'geography', 'start-date': '', 'end-date': '', 'entry-date': '2024-01-01' },
@@ -65,8 +66,11 @@ const TITLE_GEOJSON = {
 const GEOJSON = {
   type: 'FeatureCollection',
   features: [
-    { type: 'Feature', properties: { dataset: 'conservation-area', name: 'Whitehall Conservation Area' }, geometry: { type: 'Polygon', coordinates: [[[-0.146, 51.499], [-0.137, 51.499], [-0.137, 51.504], [-0.146, 51.504], [-0.146, 51.499]]] } },
-    { type: 'Feature', properties: { dataset: 'listed-building', name: 'Buckingham Palace' }, geometry: { type: 'Point', coordinates: [-0.1419, 51.5014] } },
+    // Deliberately listed smallest-first: the app must re-order so the LARGEST
+    // paints first (bottom) and small ones stay hoverable on top.
+    { type: 'Feature', properties: { dataset: 'listed-building', name: 'Buckingham Palace', entity: 201 }, geometry: { type: 'Point', coordinates: [-0.1419, 51.5014] } },
+    { type: 'Feature', properties: { dataset: 'conservation-area', name: 'Whitehall Conservation Area', entity: 203 }, geometry: { type: 'Polygon', coordinates: [[[-0.146, 51.499], [-0.137, 51.499], [-0.137, 51.504], [-0.146, 51.504], [-0.146, 51.499]]] } },
+    { type: 'Feature', properties: { dataset: 'flood-risk-zone', name: 'Flood Zone', entity: 202 }, geometry: { type: 'Polygon', coordinates: [[[-0.16, 51.49], [-0.12, 51.49], [-0.12, 51.51], [-0.16, 51.51], [-0.16, 51.49]]] } },
   ],
 };
 
@@ -321,6 +325,37 @@ test('the search panel collapses after a check and reopens on demand', async ({ 
   await page.getByRole('button', { name: 'New search' }).click();
   await expect(page.locator('.search-forms')).toBeVisible();
   await expect(page.locator('#postcode-input')).toBeVisible();
+});
+
+test('duplicate designations group into one card, hover order and eye toggles work', async ({ page }) => {
+  await page.fill('#postcode-input', 'SW1A 1AA');
+  await page.press('#postcode-input', 'Enter');
+  await page.waitForSelector('.hit-list');
+
+  // Two Flood Zone 2 entities collapse into one grouped card with member rows.
+  const grouped = page.locator('.hit', { hasText: '(2 areas)' });
+  await expect(grouped).toHaveCount(1);
+  await expect(grouped).toContainText('Flood Zone 2');
+  await expect(grouped.locator('.group-members li')).toHaveCount(2);
+
+  // Paint order: the large flood polygon (medium tier #996f00) must be painted
+  // BEFORE the smaller conservation area (high tier #c2510e), leaving the
+  // smaller polygon on top and hoverable.
+  await page.waitForSelector('.leaflet-overlay-pane path[stroke="#c2510e"]');
+  const strokes = await page.$$eval('.leaflet-overlay-pane path[stroke]', (els) =>
+    els.map((e) => e.getAttribute('stroke')),
+  );
+  expect(strokes.indexOf('#996f00')).toBeGreaterThanOrEqual(0);
+  expect(strokes.indexOf('#996f00')).toBeLessThan(strokes.indexOf('#c2510e'));
+
+  // The eye toggle hides and re-shows the conservation area's map layer.
+  const consToggle = page.locator('.hit', { hasText: 'Whitehall Conservation Area' }).locator('.hit-toggle');
+  await expect(page.locator('.leaflet-overlay-pane path[stroke="#c2510e"]')).toHaveCount(1);
+  await consToggle.click();
+  await expect(consToggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.leaflet-overlay-pane path[stroke="#c2510e"]')).toHaveCount(0);
+  await consToggle.click();
+  await expect(page.locator('.leaflet-overlay-pane path[stroke="#c2510e"]')).toHaveCount(1);
 });
 
 test('a saved site can be re-checked and reports no changes', async ({ page }) => {

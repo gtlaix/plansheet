@@ -1,6 +1,7 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { CATEGORY_LABELS, impactTier, TIER_LABELS, type ImpactTier } from '../datasets';
+import { areaM2, type AreaGeometry } from '../geometry';
 import type { Category } from '../types';
 
 export const TIER_COLORS: Record<ImpactTier, string> = {
@@ -36,6 +37,8 @@ export interface MapController {
     categoryBySlug: Map<string, Category>,
   ): void;
   clearOverlays(): void;
+  /** Show/hide one entity's rendered geometry (the report cards' eye toggle). */
+  setEntityVisible(entityId: number, visible: boolean): void;
   setDark(dark: boolean): void;
   showEnglandMask(border: GeoJSON.FeatureCollection | null): void;
   /** Render a drawn/imported site boundary and frame the map to it (SPEC-01). */
@@ -124,6 +127,22 @@ export function createMap(
   let pin: L.CircleMarker | null = null;
   let boundary: L.GeoJSON | null = null;
   let layersControl: L.Control.Layers | null = null;
+
+  // Per-entity rendered layers (for the report cards' hide/show toggles) and
+  // the global large→small paint order (small features must stay hoverable).
+  const entityLayers = new Map<number, { layer: L.Layer; group: L.LayerGroup }[]>();
+  let paintOrder: L.Layer[] = [];
+
+  const applyPaintOrder = () => {
+    // Bring every layer to front largest-first: the last (smallest) ends up on
+    // top, so a small TPO ring inside a borough-wide flood zone stays hoverable.
+    for (const layer of paintOrder) {
+      const l = layer as L.Path;
+      if (typeof l.bringToFront === 'function' && map.hasLayer(layer)) l.bringToFront();
+    }
+  };
+  // Re-toggling a category (layers control) re-adds its group on top — restore.
+  map.on('overlayadd', () => applyPaintOrder());
 
   // Overlay opacity: one slider scaling every constraint layer's opacity
   // (SPEC-02). Base fill opacities are tagged per layer at creation.
@@ -333,9 +352,17 @@ export function createMap(
         },
       };
 
+      // Paint the largest areas first so small designations end up on top and
+      // stay hoverable (points/lines count as area 0 → always on top).
+      const featureArea = (f: GeoJSON.Feature): number => {
+        const g = f.geometry;
+        return g && (g.type === 'Polygon' || g.type === 'MultiPolygon') ? areaM2(g as AreaGeometry) : 0;
+      };
+      const features = [...(collection.features ?? [])].sort((a, b) => featureArea(b) - featureArea(a));
+
       // Group features by category so each can be toggled independently.
       const groups = new Map<Category, L.LayerGroup>();
-      for (const feature of collection.features ?? []) {
+      for (const feature of features) {
         const slug = String(feature.properties?.dataset ?? '');
         const category = categoryBySlug.get(slug) ?? 'other';
         let group = groups.get(category);
@@ -343,8 +370,18 @@ export function createMap(
           group = L.layerGroup().addTo(overlayGroup);
           groups.set(category, group);
         }
-        L.geoJSON(feature, options).addTo(group);
+        const rendered = L.geoJSON(feature, options).addTo(group);
+        const entityId = Number(feature.properties?.entity);
+        rendered.eachLayer((layer) => {
+          paintOrder.push(layer);
+          if (Number.isFinite(entityId)) {
+            const list = entityLayers.get(entityId) ?? [];
+            list.push({ layer, group: rendered });
+            entityLayers.set(entityId, list);
+          }
+        });
       }
+      applyPaintOrder();
 
       if (groups.size > 0) {
         const overlays: Record<string, L.Layer> = {};
@@ -355,10 +392,23 @@ export function createMap(
 
     clearOverlays() {
       overlayGroup.clearLayers();
+      entityLayers.clear();
+      paintOrder = [];
       if (layersControl) {
         layersControl.remove();
         layersControl = null;
       }
+    },
+
+    setEntityVisible(entityId, visible) {
+      for (const { layer, group } of entityLayers.get(entityId) ?? []) {
+        if (visible) {
+          if (!group.hasLayer(layer)) group.addLayer(layer);
+        } else {
+          group.removeLayer(layer);
+        }
+      }
+      if (visible) applyPaintOrder(); // re-added layers land on top — restore order
     },
 
     setDark(dark: boolean) {

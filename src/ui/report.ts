@@ -111,7 +111,7 @@ export function entityDetailRows(entity: Record<string, unknown>): [string, stri
     .map(([k, v]) => [k.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase()), String(v)]);
 }
 
-function hitCard(hit: ScoredHit, distanceLine?: string, coverageLine?: string): HTMLElement {
+function hitCard(hit: ScoredHit, distanceLine?: string, coverageLine?: string, toggle?: HTMLElement): HTMLElement {
   const tier = impactTier(hit.score);
   const name = String(hit.entity.name ?? '').trim();
   const title = name !== '' ? name : hit.entity.reference || `Entity ${hit.entity.entity}`;
@@ -128,6 +128,7 @@ function hitCard(hit: ScoredHit, distanceLine?: string, coverageLine?: string): 
       el('span', { class: `badge badge-${tier}`, ariaLabel: `Impact rating: ${TIER_LABELS[tier]}` }, TIER_LABELS[tier]),
       el('span', { class: 'category-tag' }, CATEGORY_LABELS[hit.registry.category]),
       ...(distanceLine ? [el('span', { class: 'distance-tag' }, distanceLine)] : []),
+      ...(toggle ? [toggle] : []),
     ),
     el(
       'h4',
@@ -140,6 +141,48 @@ function hitCard(hit: ScoredHit, distanceLine?: string, coverageLine?: string): 
     ...(hit.detail ? [el('p', { class: 'hit-detail' }, el('strong', {}, 'Removes: '), hit.detail)] : []),
     ...(meta.length > 0 ? [el('p', { class: 'hit-meta' }, meta.join(' · '))] : []),
     hitDetails(hit),
+  );
+}
+
+/**
+ * One card for several pieces of the same designation (same dataset,
+ * qualifier and score) — e.g. "Flood Zone 2 (3 areas)" — with a compact row
+ * per piece and a single map toggle covering all of them.
+ */
+function groupedCard(group: ScoredHit[], data: ReportData, toggle?: HTMLElement): HTMLElement {
+  const first = group[0];
+  const tier = impactTier(first.score);
+  const title = `${first.registry.label}${first.qualifier ? ` — ${first.qualifier}` : ''} (${group.length} areas)`;
+
+  const members = el('ul', { class: 'group-members' });
+  for (const hit of group) {
+    const name = String(hit.entity.name ?? '').trim();
+    const text = name !== '' ? name : hit.entity.reference || `Entity ${hit.entity.entity}`;
+    const cov = data.coverage?.get(hit.entity.entity);
+    members.append(
+      el(
+        'li',
+        {},
+        el('a', { href: entityPageUrl(hit.entity.entity), target: '_blank', rel: 'noopener' }, text),
+        ...(hit.entity.reference && name !== '' ? [el('span', { class: 'hit-meta' }, ` · Ref ${hit.entity.reference}`)] : []),
+        ...(cov !== undefined && cov !== null ? [el('span', { class: 'hit-meta' }, ` · covers ${formatCoverage(cov)}`)] : []),
+      ),
+    );
+  }
+
+  return el(
+    'li',
+    { class: `hit tier-${tier}` },
+    el(
+      'div',
+      { class: 'hit-head' },
+      el('span', { class: `badge badge-${tier}`, ariaLabel: `Impact rating: ${TIER_LABELS[tier]}` }, TIER_LABELS[tier]),
+      el('span', { class: 'category-tag' }, CATEGORY_LABELS[first.registry.category]),
+      ...(toggle ? [toggle] : []),
+    ),
+    el('h4', {}, title),
+    ...(first.registry.blurb ? [el('p', { class: 'hit-blurb' }, first.registry.blurb)] : []),
+    members,
   );
 }
 
@@ -169,6 +212,43 @@ export interface ReportHandlers {
   onScan?: (radiusM: number) => Promise<void>;
   /** Save this check (with a constraint snapshot) for later re-checking. */
   onSave?: () => void;
+  /** Hide/show the geometry of these entities on the map (card eye toggle). */
+  onToggleEntity?: (entityIds: number[], visible: boolean) => void;
+}
+
+/**
+ * Group constraint hits that are the same designation in several pieces — same
+ * dataset, qualifier and score (e.g. two "Flood Zone 2" polygons) — into one
+ * card. Groups keep the position of their first (highest-ranked) member.
+ */
+export function groupConstraintHits(hits: ScoredHit[]): ScoredHit[][] {
+  const groups = new Map<string, ScoredHit[]>();
+  for (const hit of hits) {
+    const key = `${hit.registry.slug}|${hit.qualifier ?? ''}|${hit.score}`;
+    const list = groups.get(key) ?? [];
+    list.push(hit);
+    groups.set(key, list);
+  }
+  return [...groups.values()];
+}
+
+/** Eye toggle: hide/show a designation's geometry on the map. */
+function mapToggle(entityIds: number[], onToggle: (ids: number[], visible: boolean) => void): HTMLElement {
+  const btn = el('button', { type: 'button', class: 'hit-toggle' }, '👁');
+  let visible = true;
+  const sync = () => {
+    btn.setAttribute('aria-pressed', String(visible));
+    btn.setAttribute('aria-label', visible ? 'Hide on map' : 'Show on map');
+    btn.title = visible ? 'Hide on map' : 'Show on map';
+    btn.classList.toggle('is-hidden', !visible);
+  };
+  sync();
+  btn.addEventListener('click', () => {
+    visible = !visible;
+    sync();
+    onToggle(entityIds, visible);
+  });
+  return btn;
 }
 
 /** What changed since the saved snapshot (shown when re-checking a saved site). */
@@ -395,11 +475,16 @@ export function renderReport(root: HTMLElement, data: ReportData, handlers: Repo
       el(
         'ul',
         { class: 'hit-list', ariaLabel: 'Constraints and designations, most significant first' },
-        ...constraintHits.map((h) => {
+        ...groupConstraintHits(constraintHits).map((group) => {
+          const toggle = handlers.onToggleEntity
+            ? mapToggle(group.map((h) => h.entity.entity), handlers.onToggleEntity)
+            : undefined;
+          if (group.length > 1) return groupedCard(group, data, toggle);
+          const h = group[0];
           const cov = data.coverage?.get(h.entity.entity);
           const line =
             cov === undefined ? undefined : cov === null ? 'Coverage n/a (geometry could not be intersected)' : `Covers ${formatCoverage(cov)}`;
-          return hitCard(h, undefined, line);
+          return hitCard(h, undefined, line, toggle);
         }),
       ),
     );

@@ -315,6 +315,40 @@ a {
   border-left-color: var(--accent);
 }
 
+/* Card eye toggle: hide/show this designation on the map */
+.hit-toggle {
+  margin-left: auto;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  font-size: 0.95rem;
+  line-height: 1;
+  background: var(--surface);
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.hit-toggle.is-hidden {
+  opacity: 0.45;
+}
+
+.hit-toggle:hover {
+  border-color: var(--accent);
+}
+
+/* Member rows of a grouped designation card */
+.group-members {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.88rem;
+}
+
 /* % of site covered (SPEC-02, polygon checks) */
 .hit-coverage {
   margin: 0.2rem 0 0;

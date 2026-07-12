@@ -55,7 +55,14 @@ let lastCheck: {
 } | null = null;
 
 function renderWithHandlers(data: ReportData): void {
-  renderReport(reportRoot, data, { onUseAsBoundary: useTitleBoundary, onScan: runScan, onSave: saveCurrentSite });
+  renderReport(reportRoot, data, {
+    onUseAsBoundary: useTitleBoundary,
+    onScan: runScan,
+    onSave: saveCurrentSite,
+    onToggleEntity: (ids, visible) => {
+      for (const id of ids) map.setEntityVisible(id, visible);
+    },
+  });
 }
 
 /** Save the last check + a constraint snapshot for later re-checking. */

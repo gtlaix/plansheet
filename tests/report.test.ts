@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { entityDetailRows } from '../src/ui/report';
-import type { PlanningEntity } from '../src/types';
+import { buildRegistry, scoreEntity, sortHits } from '../src/datasets';
+import { entityDetailRows, groupConstraintHits } from '../src/ui/report';
+import type { PlanningEntity, RegistryEntry } from '../src/types';
 
 function entity(extra: Record<string, unknown> = {}): PlanningEntity {
   return {
@@ -15,6 +16,31 @@ function entity(extra: Record<string, unknown> = {}): PlanningEntity {
     ...extra,
   };
 }
+
+describe('groupConstraintHits', () => {
+  const reg = (slug: string): RegistryEntry => {
+    const found = buildRegistry([]).find((r) => r.slug === slug);
+    if (!found) throw new Error(`no registry entry for ${slug}`);
+    return found;
+  };
+  const flood = (id: number, level: string): PlanningEntity =>
+    entity({ entity: id, name: '', dataset: 'flood-risk-zone', reference: `FZ${id}`, 'flood-risk-level': level });
+
+  it('groups pieces of the same designation and keeps ranking order', () => {
+    const hits = sortHits([
+      scoreEntity(flood(1, '2'), reg('flood-risk-zone')),
+      scoreEntity(flood(2, '2'), reg('flood-risk-zone')),
+      scoreEntity(entity({ entity: 3, dataset: 'listed-building', 'listed-building-grade': 'I' }), reg('listed-building')),
+      scoreEntity(flood(4, '3'), reg('flood-risk-zone')),
+    ]);
+    const groups = groupConstraintHits(hits);
+    // Grade I (98) first, then Zone 3 (80), then the two Zone 2s as one group
+    expect(groups.map((g) => g.length)).toEqual([1, 1, 2]);
+    expect(groups[0][0].registry.slug).toBe('listed-building');
+    expect(groups[1][0].qualifier).toBe('Flood Zone 3'); // Zone 3 never merges with Zone 2
+    expect(groups[2].map((h) => h.entity.entity).sort()).toEqual([1, 2]);
+  });
+});
 
 describe('entityDetailRows', () => {
   it('exposes populated primitive fields with humanised labels', () => {
